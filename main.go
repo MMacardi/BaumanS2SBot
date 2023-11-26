@@ -1,8 +1,8 @@
 package main
 
 import (
-	"TelegramS2SBot/internal/model"
-	"TelegramS2SBot/internal/storage"
+	"BaumanS2SBot/internal/model"
+	"BaumanS2SBot/internal/storage"
 	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jmoiron/sqlx"
@@ -10,45 +10,19 @@ import (
 	_ "github.com/lib/pq"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
-var numericKeyboard = tgbotapi.NewInlineKeyboardMarkup(
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonURL("1.com", "http://1.com"),
-		tgbotapi.NewInlineKeyboardButtonData("2", "2"),
-		tgbotapi.NewInlineKeyboardButtonData("3", "3"),
-	),
-	tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("4", "4"),
-		tgbotapi.NewInlineKeyboardButtonData("5", "5"),
-		tgbotapi.NewInlineKeyboardButtonData("6", "6"),
-	),
+const (
+	StateHome = iota
+	StateStart
+	StateAddCategory
+	StateRemoveCategory
 )
 
-func goDotEnvVariable(key string) string {
-
-	// load .env file
-	err := godotenv.Load(".env")
-
-	if err != nil {
-		log.Fatalf("Error loading .env file")
-	}
-
-	return os.Getenv(key)
-}
-
-func isNewUser(db *sqlx.DB, userID int64) bool {
-	var count int
-	err := db.Get(&count, "SELECT count(*) FROM users WHERE userid = $1", userID)
-	if err != nil {
-		log.Printf("Error querying user: %v", err)
-		return false
-	}
-	return count == 0
-}
-
 func main() {
+	userStates := make(map[int64]int)
 	token := goDotEnvVariable("TELEGRAM_APITOKEN")
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
@@ -68,70 +42,181 @@ func main() {
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
+	ctx := context.Background()
+	categories, err := storage.GetCategoriesMap(ctx, db)
+
+	categoriesKeyboard := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран"),
+			tgbotapi.NewKeyboardButton("Удалить категории")))
+
+	for _, categoryName := range categories {
+		categoriesKeyboard = storage.AddKeyboardButton(categoriesKeyboard, categoryName)
+	}
+	if err != nil {
+		log.Fatalf("Error getting categories", err)
+	}
+
 	for update := range updates {
+		userID := update.Message.From.ID
+		currentState := userStates[userID]
 		if update.Message == nil { // если сообщение отсутствует, пропускаем итерацию
 			continue
 		}
-
-		userID := update.Message.From.ID
-		// Регистрация
-		// Проверяем, является ли пользователь новым, прежде чем отправлять приветственное сообщение
-		if update.Message.Text == "/start" && isNewUser(db, userID) {
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Добро пожаловать! Нажмите для регистрации:")
-			msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
-				tgbotapi.NewKeyboardButtonRow(
-					tgbotapi.NewKeyboardButton("Зарегистрироваться"),
-				),
-			)
-			if _, err := bot.Send(msg); err != nil {
-				log.Printf("Error sending welcome message: %v", err)
-			}
-			continue
+		//_, er := storage.GetEveryUserCategoriesMap(ctx, db)
+		//if er != nil {
+		//	log.Fatal("Error with db", er)
+		//}
+		if isNewUser(db, userID) {
+			userStates[userID] = StateStart
+			log.Print(userStates)
 		}
 
-		// Обработка сообщения "Зарегистрироваться"
-		if update.Message.Text == "Зарегистрироваться" && isNewUser(db, userID) {
-			// Тут должна быть логика для регистрации пользователя, чтобы он больше не считался новым
-			// ...
+		switch currentState {
+		case StateStart:
+			sendRegisterKeyboard(bot, update.Message.Chat.ID)
 
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выберите категорию:")
-			msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
-				tgbotapi.NewKeyboardButtonRow(
-					tgbotapi.NewKeyboardButton("Матан"),
-					tgbotapi.NewKeyboardButton("Инжа"),
-				),
-			)
-			if _, err := bot.Send(msg); err != nil {
-				log.Printf("Error sending category selection message: %v", err)
-			}
-			continue
-		}
+			if update.Message.Text == "Зарегистрироваться" {
+				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 
-		// Обработка выбора категории
-		if update.Message.Text == "Матан" || update.Message.Text == "Инжа" {
-			// Предполагаем, что функция storage.RegisterUser регистрирует пользователя и обновляет его статус
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			category := update.Message.Text
-			// Обязательно обработайте возможную ошибку от RegisterUser
-			user := model.User{
-				UserId:   userID,
-				Name:     update.Message.From.UserName,
-				Category: category,
-			}
-			if err := storage.RegisterUser(ctx, db, user); err != nil {
-				log.Printf("Error registering user: %v %s", err)
+				user := model.User{
+					UserId:   userID,
+					Username: update.Message.From.UserName,
+				}
+				if err := storage.RegisterUser(ctx, db, user); err != nil {
+					log.Printf("Error registering user: %v %s", err)
+					cancel()
+					continue
+				}
 				cancel()
-				continue
+				sendHomeKeyboard(bot, update.Message.Chat.ID)
+				userStates[userID] = StateHome
 			}
-			cancel() // Убедитесь, что контекст закрыт в случае успешной регистрации
+		case StateHome:
+			sendHomeKeyboard(bot, update.Message.Chat.ID)
+			if update.Message.Text == "Хочу помогать" {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы зарегистрированы в категориях"+" "+strings.Join(storage.GetCategoriesNameByCategoryID(ctx, db,
+					storage.GetUserCategoriesSlice(ctx, db, update.Message.Chat.ID)), ","))
 
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы зарегистрированы в категории: "+category)
-			msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
-			if _, err := bot.Send(msg); err != nil {
-				log.Printf("Error sending registration confirmation message: %v", err)
+				msg.ReplyMarkup = categoriesKeyboard
+				if _, err := bot.Send(msg); err != nil {
+					log.Printf("Error sending registration confirmation message: %v", err)
+				}
+
+				userStates[userID] = StateAddCategory
 			}
+
+		case StateAddCategory:
+			if categoryId, found := getKeyByValue(categories, update.Message.Text); found {
+				err := storage.AddCategories(ctx, db, userID, categoryId)
+				if err != nil {
+					log.Printf("Error sending category message: %v", err)
+					continue
+				}
+
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "вы зареганы в этой категории")
+				if _, err := bot.Send(msg); err != nil {
+					log.Printf("Error sending category response: %v", err)
+					continue
+				}
+			} else if update.Message.Text == "Вернуться на главный экран" {
+				sendHomeKeyboard(bot, update.Message.Chat.ID)
+				userStates[userID] = StateHome
+			} else if update.Message.Text == "Удалить категории" {
+				sendUserCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID)
+
+				userStates[userID] = StateRemoveCategory
+			}
+		case StateRemoveCategory:
+			if categoryId, found := getKeyByValue(categories, update.Message.Text); found {
+				err := storage.RemoveCategories(ctx, db, userID, categoryId)
+
+				if err != nil {
+					log.Printf("Error removing category: %v", err)
+					continue
+				}
+
+				sendUserCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID)
+			} else if update.Message.Text == "Вернуться на главный экран" {
+				sendHomeKeyboard(bot, update.Message.Chat.ID)
+				userStates[userID] = StateHome
+			}
+
 		}
 	}
+}
+func GetCurrentCategoriesKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) {
+
+}
+func sendUserCategoriesKeyboard(ctx context.Context, bot *tgbotapi.BotAPI, db *sqlx.DB, chatID int64) {
+	currentCategories := storage.GetCategoriesNameByCategoryID(ctx, db, storage.GetUserCategoriesSlice(ctx, db, chatID))
+	currentCategoriesKeyboard := tgbotapi.NewReplyKeyboard(tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран")))
+
+	for _, currentCategoryName := range currentCategories {
+		currentCategoriesKeyboard = storage.AddKeyboardButton(currentCategoriesKeyboard, currentCategoryName)
+	}
+	msg := tgbotapi.NewMessage(chatID, "Вы зарегистрированы в категориях"+" "+strings.Join(storage.GetCategoriesNameByCategoryID(ctx, db,
+		storage.GetUserCategoriesSlice(ctx, db, chatID)), ","))
+
+	msg.ReplyMarkup = currentCategoriesKeyboard
+
+	if _, err := bot.Send(msg); err != nil {
+		log.Printf("Error sending send home message: %v", err)
+	}
+}
+
+func sendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
+	msg := tgbotapi.NewMessage(chatID, "Что вы хотите сделать?")
+	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("Нужна помощь"),
+			tgbotapi.NewKeyboardButton("Хочу помогать"),
+		),
+	)
+	if _, err := bot.Send(msg); err != nil {
+		log.Printf("Error sending send home message: %v", err)
+	}
+}
+func sendRegisterKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
+	msg := tgbotapi.NewMessage(chatID, "Добро пожаловать! Нажмите для регистрации:")
+	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("Зарегистрироваться"),
+		),
+	)
+	if _, err := bot.Send(msg); err != nil {
+		log.Printf("Error sending welcome message: %v", err)
+	}
+}
+
+func getKeyByValue(myMap map[int]string, valueToFind string) (int, bool) {
+	for key, value := range myMap {
+		if value == valueToFind {
+			return key, true // Возвращаем ключ и true, если нашли совпадение
+		}
+	}
+	return 0, false // Возвращаем 0 и false, если совпадение не найдено
+}
+
+func goDotEnvVariable(key string) string {
+
+	// load .env file
+	err := godotenv.Load(".env")
+
+	if err != nil {
+		log.Fatalf("Error loading .env file")
+	}
+
+	return os.Getenv(key)
+}
+
+func isNewUser(db *sqlx.DB, userID int64) bool {
+	var count int
+	err := db.Get(&count, "SELECT count(*) FROM users WHERE user_id = $1", userID)
+	if err != nil {
+		log.Printf("Error querying user: %v", err)
+		return false
+	}
+	return count == 0
 }
 
 //switch update.Message.Text {

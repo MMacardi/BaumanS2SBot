@@ -1,8 +1,13 @@
 package model
 
 type User struct {
-	UserId   int64  `db:"userID"`
-	Name     string `db:"name"`
-	Category string `db:"category"`
+	Id       int    `db:"id"`
+	UserId   int64  `db:"user_id"`
+	Username string `db:"username"`
 	Ranking  int    `db:"ranking"`
+}
+
+type Category struct {
+	Id           int    `db:"id"`
+	CategoryName string `db:"category_name"`
 }
