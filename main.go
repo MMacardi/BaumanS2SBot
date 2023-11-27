@@ -113,7 +113,8 @@ func main() {
 					continue
 				}
 
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "вы зареганы в этой категории")
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы зарегистрированы в категориях"+" "+strings.Join(storage.GetCategoriesNameByCategoryID(ctx, db,
+					storage.GetUserCategoriesSlice(ctx, db, update.Message.Chat.ID)), ","))
 				if _, err := bot.Send(msg); err != nil {
 					log.Printf("Error sending category response: %v", err)
 					continue
@@ -122,7 +123,7 @@ func main() {
 				sendHomeKeyboard(bot, update.Message.Chat.ID)
 				userStates[userID] = StateHome
 			} else if update.Message.Text == "Удалить категории" {
-				sendUserCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID)
+				sendUserCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID, getCurrentUserCategories(ctx, db, update.Message.Chat.ID))
 
 				userStates[userID] = StateRemoveCategory
 			}
@@ -135,7 +136,7 @@ func main() {
 					continue
 				}
 
-				sendUserCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID)
+				sendUserCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID, getCurrentUserCategories(ctx, db, update.Message.Chat.ID))
 			} else if update.Message.Text == "Вернуться на главный экран" {
 				sendHomeKeyboard(bot, update.Message.Chat.ID)
 				userStates[userID] = StateHome
@@ -144,16 +145,19 @@ func main() {
 		}
 	}
 }
-func GetCurrentCategoriesKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) {
 
-}
-func sendUserCategoriesKeyboard(ctx context.Context, bot *tgbotapi.BotAPI, db *sqlx.DB, chatID int64) {
+func getCurrentUserCategories(ctx context.Context, db *sqlx.DB, chatID int64) tgbotapi.ReplyKeyboardMarkup {
 	currentCategories := storage.GetCategoriesNameByCategoryID(ctx, db, storage.GetUserCategoriesSlice(ctx, db, chatID))
 	currentCategoriesKeyboard := tgbotapi.NewReplyKeyboard(tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран")))
 
 	for _, currentCategoryName := range currentCategories {
 		currentCategoriesKeyboard = storage.AddKeyboardButton(currentCategoriesKeyboard, currentCategoryName)
 	}
+
+	return currentCategoriesKeyboard
+}
+
+func sendUserCategoriesKeyboard(ctx context.Context, bot *tgbotapi.BotAPI, db *sqlx.DB, chatID int64, currentCategoriesKeyboard tgbotapi.ReplyKeyboardMarkup) {
 	msg := tgbotapi.NewMessage(chatID, "Вы зарегистрированы в категориях"+" "+strings.Join(storage.GetCategoriesNameByCategoryID(ctx, db,
 		storage.GetUserCategoriesSlice(ctx, db, chatID)), ","))
 
