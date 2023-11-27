@@ -1,8 +1,8 @@
 package main
 
 import (
+	"BaumanS2SBot/internal/infrastructure/storage"
 	"BaumanS2SBot/internal/model"
-	"BaumanS2SBot/internal/storage"
 	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jmoiron/sqlx"
@@ -42,9 +42,8 @@ func main() {
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
-	updates := bot.GetUpdatesChan(u)
 
-	ctx := context.Background()
+	ctx := context.TODO()
 	categories, err := storage.GetCategoriesMap(ctx, db)
 
 	categoriesKeyboard := tgbotapi.NewReplyKeyboard(
@@ -59,6 +58,7 @@ func main() {
 		log.Fatalf("Error getting categories %v", err)
 	}
 
+	updates := bot.GetUpdatesChan(u)
 	for update := range updates {
 		userID := update.Message.From.ID
 		currentState := userStates[userID]
@@ -223,7 +223,7 @@ func getKeyByValue(myMap map[int]string, valueToFind string) (int, bool) {
 func goDotEnvVariable(key string) string {
 
 	// load .env file
-	err := godotenv.Load(".env")
+	err := godotenv.Load("cmd/app/.env")
 
 	if err != nil {
 		log.Fatalf("Error loading .env file")
