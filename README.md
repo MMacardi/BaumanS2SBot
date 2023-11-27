@@ -1,6 +1,8 @@
 # BaumanS2SBot
 To Start Docker Container use 
+
 docker-compose -f docker-compose.dev.yml start
+
 docker-compose -f docker-compose.dev.yml ps
 
 For easier work with database this project user goose and sqlx library
