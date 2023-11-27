@@ -23,18 +23,20 @@ const (
 
 func main() {
 	userStates := make(map[int64]int)
-	token := goDotEnvVariable("TELEGRAM_APITOKEN")
+	token := goDotEnvVariable("TELEGRAM_API_TOKEN")
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		log.Fatalf("Error with the token: %v\n", err)
 	}
-	dataSourceName := goDotEnvVariable("DATASOURCENAME")
+	dataSourceName := goDotEnvVariable("DATASOURCE_NAME")
 	db, err := sqlx.Connect("postgres", dataSourceName)
 	if err != nil {
 		log.Fatalf("Error connecting to the database: %v", err)
 	}
 
-	defer db.Close()
+	defer func(db *sqlx.DB) {
+		_ = db.Close()
+	}(db)
 
 	log.Println("Bot has been started...")
 
@@ -52,20 +54,18 @@ func main() {
 	for _, categoryName := range categories {
 		categoriesKeyboard = storage.AddKeyboardButton(categoriesKeyboard, categoryName)
 	}
+
 	if err != nil {
-		log.Fatalf("Error getting categories", err)
+		log.Fatalf("Error getting categories %v", err)
 	}
 
 	for update := range updates {
 		userID := update.Message.From.ID
 		currentState := userStates[userID]
-		if update.Message == nil { // если сообщение отсутствует, пропускаем итерацию
+		if update.Message == nil {
 			continue
 		}
-		//_, er := storage.GetEveryUserCategoriesMap(ctx, db)
-		//if er != nil {
-		//	log.Fatal("Error with db", er)
-		//}
+
 		if isNewUser(db, userID) {
 			userStates[userID] = StateStart
 			log.Print(userStates)
@@ -83,7 +83,7 @@ func main() {
 					Username: update.Message.From.UserName,
 				}
 				if err := storage.RegisterUser(ctx, db, user); err != nil {
-					log.Printf("Error registering user: %v %s", err)
+					log.Printf("Error registering user: %v", err)
 					cancel()
 					continue
 				}
@@ -131,6 +131,7 @@ func main() {
 
 				userStates[userID] = StateRemoveCategory
 			}
+
 		case StateRemoveCategory:
 			if categoryId, found := getKeyByValue(categories, update.Message.Text); found {
 				err := storage.RemoveCategories(ctx, db, userID, categoryId)
@@ -197,6 +198,7 @@ func sendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
 		log.Printf("Error sending send home message: %v", err)
 	}
 }
+
 func sendRegisterKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
 	msg := tgbotapi.NewMessage(chatID, "Добро пожаловать! Нажмите для регистрации:")
 	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
@@ -212,10 +214,10 @@ func sendRegisterKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
 func getKeyByValue(myMap map[int]string, valueToFind string) (int, bool) {
 	for key, value := range myMap {
 		if value == valueToFind {
-			return key, true // Возвращаем ключ и true, если нашли совпадение
+			return key, true
 		}
 	}
-	return 0, false // Возвращаем 0 и false, если совпадение не найдено
+	return 0, false
 }
 
 func goDotEnvVariable(key string) string {
@@ -239,30 +241,3 @@ func isNewUser(db *sqlx.DB, userID int64) bool {
 	}
 	return count == 0
 }
-
-//switch update.Message.Text {
-//case "open":
-//msg.ReplyMarkup = numericKeyboard
-//case "1", "2", "3", "4", "5", "6":
-//msg.ReplyMarkup = tgbotapi.NewRemoveKeyboard(true)
-//default:
-//responseText = "Please, choose from the list below"
-
-//if update.CallbackQuery != nil {
-//	// TODO: забивка инфы в датабазу
-//	// ID сообщения и чата, чтобы изменить сообщение
-//	chatID := update.CallbackQuery.Message.Chat.ID
-//	messageID := update.CallbackQuery.Message.MessageID
-//
-//	// Новый текст сообщения и удаление клавиатуры
-//	newMsg := tgbotapi.NewEditMessageText(chatID, messageID, "Изменено")
-//	newMsg.ReplyMarkup = &tgbotapi.InlineKeyboardMarkup{
-//		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{},
-//	}
-//
-//	// Отправляем изменение сообщения
-//	_, err := bot.Send(newMsg)
-//	if err != nil {
-//		// Обработка ошибки
-//		log.Println("can't send", err)
-//
