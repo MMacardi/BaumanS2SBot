@@ -1,9 +1,11 @@
 package main
 
 import (
-	"BaumanS2SBot/internal/infrastructure/storage"
+	"BaumanS2SBot/internal/application"
+	"BaumanS2SBot/internal/infrastructure/storage/cache"
 	"BaumanS2SBot/internal/model"
 	"context"
+	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
@@ -14,14 +16,24 @@ import (
 	"time"
 )
 
+const dateTimeLayout = "15:04 02.01.2006"
+
 const (
 	StateHome = iota
 	StateStart
 	StateAddCategory
 	StateRemoveCategory
+	StateChoosingCategoryForHelp
+	StateFormingRequestForHelp
+	StateSendingRequestForHelp
 )
 
 func main() {
+	var originMessage tgbotapi.CopyMessageConfig
+	var categoryChosen string
+	var helpCategoryID int
+	var parsedDateTime time.Time
+	var dateTimeText string
 	userStates := make(map[int64]int)
 	token := goDotEnvVariable("TELEGRAM_API_TOKEN")
 	bot, err := tgbotapi.NewBotAPI(token)
@@ -44,18 +56,10 @@ func main() {
 	u.Timeout = 60
 
 	ctx := context.TODO()
-	categories, err := storage.GetCategoriesMap(ctx, db)
-
-	categoriesKeyboard := tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран"),
-			tgbotapi.NewKeyboardButton("Удалить категории")))
-
-	for _, categoryName := range categories {
-		categoriesKeyboard = storage.AddKeyboardButton(categoriesKeyboard, categoryName)
-	}
+	categories, err := application.GetCategoriesMap(ctx, db)
 
 	if err != nil {
-		log.Fatalf("Error getting categories %v", err)
+		log.Fatalf("can't take categories map %v", err)
 	}
 
 	updates := bot.GetUpdatesChan(u)
@@ -70,10 +74,27 @@ func main() {
 			userStates[userID] = StateStart
 			log.Print(userStates)
 		}
+		log.Printf("%v", currentState)
+
+		ticker := time.NewTicker(1 * time.Second)
+		go func() {
+			for range ticker.C {
+				_, messageIDToDelete := cache.DeleteExpiredRequests(
+					"./internal/infrastructure/storage/cache/cache.json")
+				if len(messageIDToDelete) != 0 {
+					for chatID, messageID := range messageIDToDelete {
+						msg := tgbotapi.NewDeleteMessage(chatID, messageID)
+						if _, err := bot.Send(msg); err != nil {
+							log.Printf("Error deleting expired messages: %v", err)
+						}
+					}
+				}
+			}
+		}()
 
 		switch currentState {
 		case StateStart:
-			sendRegisterKeyboard(bot, update.Message.Chat.ID)
+			application.SendRegisterKeyboard(bot, update.Message.Chat.ID)
 
 			if update.Message.Text == "Зарегистрироваться" {
 				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -82,132 +103,195 @@ func main() {
 					UserId:   userID,
 					Username: update.Message.From.UserName,
 				}
-				if err := storage.RegisterUser(ctx, db, user); err != nil {
+				if err := application.RegisterUser(ctx, db, user); err != nil {
 					log.Printf("Error registering user: %v", err)
 					cancel()
 					continue
 				}
 				cancel()
-				sendHomeKeyboard(bot, update.Message.Chat.ID)
+				application.SendHomeKeyboard(bot, update.Message.Chat.ID)
 				userStates[userID] = StateHome
 			}
 		case StateHome:
-			sendHomeKeyboard(bot, update.Message.Chat.ID)
+			application.SendHomeKeyboard(bot, update.Message.Chat.ID)
 			if update.Message.Text == "Хочу помогать" {
-				categoriesString := getUserCategoriesString(ctx, db, update.Message.Chat.ID)
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы зарегистрированы в категориях"+" "+categoriesString)
+				categoriesString := application.GetCurrentUserCategoriesString(ctx, db, update.Message.Chat.ID)
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы зарегистрированы в категориях"+
+					" "+categoriesString)
 
 				if categoriesString == "" {
-					msg = tgbotapi.NewMessage(update.Message.Chat.ID, "Вы не зарегистрированы ни в одной из категорий :(")
+					msg = tgbotapi.NewMessage(update.Message.Chat.ID,
+						"Вы не зарегистрированы ни в одной из категорий :(")
 				}
 
-				msg.ReplyMarkup = categoriesKeyboard
+				msg.ReplyMarkup = application.GetCategorySelectKeyboard(ctx, db)
 				if _, err := bot.Send(msg); err != nil {
 					log.Printf("Error sending registration confirmation message: %v", err)
 				}
 
 				userStates[userID] = StateAddCategory
+			} else if update.Message.Text == "Нужна помощь" {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выберите предмет:")
+				msg.ReplyMarkup = application.GetAllCategoryKeyboard(ctx, db)
+
+				if _, err := bot.Send(msg); err != nil {
+					log.Printf("Error sending need help message %v", err)
+				}
+
+				userStates[userID] = StateChoosingCategoryForHelp
+			}
+		case StateChoosingCategoryForHelp:
+			if update.Message.Text == "Вернуться на главный экран" {
+				application.SendHomeKeyboard(bot, update.Message.Chat.ID)
+				userStates[userID] = StateHome
+			} else if categoryID, found := getKeyByValue(categories, update.Message.Text); found {
+				categoryChosen = update.Message.Text
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выбрана категория: "+
+					"<b>"+categoryChosen+"</b>"+
+					"\nНапишите дедлайн вашего запроса на помощь в формате ЧЧ:ММ Д.М.Г (Пример: 19:15 01.12.2023)")
+				msg.ParseMode = "HTML"
+				msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
+					tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран")))
+				if _, err := bot.Send(msg); err != nil {
+					log.Printf("Error with sending chosen category msg %v", err)
+				}
+
+				userStates[userID] = StateFormingRequestForHelp
+				helpCategoryID = categoryID
+			}
+		case StateFormingRequestForHelp:
+			if update.Message.Text == "Вернуться на главный экран" {
+				application.SendHomeKeyboard(bot, update.Message.Chat.ID)
+				userStates[userID] = StateHome
+			} else {
+				// date
+				dateTimeText = update.Message.Text
+
+				parsedDateTime, err = time.Parse(dateTimeLayout, dateTimeText)
+
+				if err != nil {
+					log.Printf("Error while parsing date and time: %v", err)
+				}
+				log.Print(parsedDateTime)
+				userStates[userID] = StateSendingRequestForHelp
+
+			}
+		case StateSendingRequestForHelp:
+			if update.Message.Text == "Вернуться на главный экран" {
+				application.SendHomeKeyboard(bot, update.Message.Chat.ID)
+				userStates[userID] = StateHome
+			} else {
+				cleverUserIDSlice, err := application.GetCleverUsersSlice(ctx, db, helpCategoryID)
+				if err != nil {
+					log.Fatalf("can't get clever user's id %v", err)
+				}
+				originMessageID := update.Message.MessageID
+				originMessage = tgbotapi.NewCopyMessage(update.Message.Chat.ID,
+					update.Message.Chat.ID, originMessageID)
+				for _, cleverUserID := range cleverUserIDSlice {
+					forwardMsg := tgbotapi.NewCopyMessage(cleverUserID,
+						update.Message.Chat.ID, originMessageID)
+
+					msg := tgbotapi.NewMessage(cleverUserID, fmt.Sprintf("Тема <b>%v</b> \n"+
+						"Отправил пользователь с id: @%v "+
+						"\nАктульно до %v",
+						categoryChosen,
+						update.Message.From.UserName,
+						dateTimeText))
+					sentMsg, err := bot.Send(forwardMsg)
+					if err != nil {
+						log.Fatalf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
+					}
+
+					err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
+						cleverUserID, originMessageID, parsedDateTime, sentMsg.MessageID)
+
+					if err != nil {
+						log.Fatalf("can't addRequest to json file: %v", err)
+					}
+
+					sentMsg, err = bot.Send(msg)
+					if err != nil {
+						log.Fatalf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
+					}
+
+					err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
+						cleverUserID,
+						originMessageID,
+						parsedDateTime,
+						sentMsg.MessageID)
+
+					if err != nil {
+						log.Fatalf("can't addRequest to json file: %v", err)
+					}
+
+				}
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID,
+					"Вы успешно сформировали запрос на помощь по теме: <b>"+
+						categoryChosen+
+						"</b>\nОписание: \n")
+				msg.ParseMode = "HTML"
+
+				if _, err := bot.Send(msg); err != nil {
+					log.Fatalf("Can't send cograts forming request: %v", err)
+				}
+
+				if _, err := bot.Send(originMessage); err != nil {
+					log.Fatalf("Can't send cograts forming request: %v", err)
+				}
+
+				application.SendHomeKeyboard(bot, update.Message.Chat.ID)
+				userStates[userID] = StateHome
 			}
 
 		case StateAddCategory:
+			var m string
 			if categoryId, found := getKeyByValue(categories, update.Message.Text); found {
-				err := storage.AddCategories(ctx, db, userID, categoryId)
-				if err != nil {
-					log.Printf("Error sending category message: %v", err)
-					continue
+				if application.IsCategoryAdded(ctx, db, update.Message.Chat.ID, update.Message.Text) {
+					m = "Вы уже зарегистрированы в категории: " + update.Message.Text + "\n\n"
+				} else {
+					err := application.AddCategories(ctx, db, userID, categoryId)
+					if err != nil {
+						log.Printf("Error sending category message: %v", err)
+						continue
+					}
 				}
-
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы зарегистрированы в категориях"+" "+strings.Join(storage.GetCategoriesNameByCategoryID(ctx, db,
-					storage.GetUserCategoriesSlice(ctx, db, update.Message.Chat.ID)), ","))
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, m+
+					"Вы зарегистрированы в категориях: "+
+					strings.Join(application.GetCategoriesNameByCategoryID(ctx, db,
+						application.GetUserCurrentCategoriesSlice(ctx, db, update.Message.Chat.ID)), ","))
 				if _, err := bot.Send(msg); err != nil {
 					log.Printf("Error sending category response: %v", err)
 					continue
 				}
+
 			} else if update.Message.Text == "Вернуться на главный экран" {
-				sendHomeKeyboard(bot, update.Message.Chat.ID)
+				application.SendHomeKeyboard(bot, update.Message.Chat.ID)
 				userStates[userID] = StateHome
 			} else if update.Message.Text == "Удалить категории" {
-				sendUserCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID, getCurrentUserCategoriesKeyboard(ctx, db, update.Message.Chat.ID))
+				application.SendUserRemoveCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID,
+					application.GetCurrentUserCategoriesKeyboard(ctx, db, update.Message.Chat.ID))
 
 				userStates[userID] = StateRemoveCategory
 			}
 
 		case StateRemoveCategory:
 			if categoryId, found := getKeyByValue(categories, update.Message.Text); found {
-				err := storage.RemoveCategories(ctx, db, userID, categoryId)
+				err := application.RemoveCategories(ctx, db, userID, categoryId)
 
 				if err != nil {
 					log.Printf("Error removing category: %v", err)
 					continue
 				}
 
-				sendUserCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID, getCurrentUserCategoriesKeyboard(ctx, db, update.Message.Chat.ID))
+				application.SendUserRemoveCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID,
+					application.GetCurrentUserCategoriesKeyboard(ctx, db, update.Message.Chat.ID))
 			} else if update.Message.Text == "Вернуться на главный экран" {
-				sendHomeKeyboard(bot, update.Message.Chat.ID)
+				application.SendHomeKeyboard(bot, update.Message.Chat.ID)
 				userStates[userID] = StateHome
 			}
 
 		}
-	}
-}
-
-func getUserCategoriesString(ctx context.Context, db *sqlx.DB, chatID int64) string {
-	userCategoriesString := strings.Join(storage.GetCategoriesNameByCategoryID(ctx, db,
-		storage.GetUserCategoriesSlice(ctx, db, chatID)), ",")
-	return userCategoriesString
-}
-
-func getCurrentUserCategoriesKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) tgbotapi.ReplyKeyboardMarkup {
-	currentCategories := storage.GetCategoriesNameByCategoryID(ctx, db, storage.GetUserCategoriesSlice(ctx, db, chatID))
-	currentCategoriesKeyboard := tgbotapi.NewReplyKeyboard(tgbotapi.NewKeyboardButtonRow(
-		tgbotapi.NewKeyboardButton("Вернуться на главный экран")))
-
-	for _, currentCategoryName := range currentCategories {
-		currentCategoriesKeyboard = storage.AddKeyboardButton(currentCategoriesKeyboard, currentCategoryName)
-	}
-
-	return currentCategoriesKeyboard
-}
-
-func sendUserCategoriesKeyboard(ctx context.Context, bot *tgbotapi.BotAPI, db *sqlx.DB, chatID int64, currentCategoriesKeyboard tgbotapi.ReplyKeyboardMarkup) {
-	currentCategoriesString := strings.Join(storage.GetCategoriesNameByCategoryID(ctx, db,
-		storage.GetUserCategoriesSlice(ctx, db, chatID)), ",")
-
-	msg := tgbotapi.NewMessage(chatID, "Вы зарегистрированы в категориях"+" "+currentCategoriesString)
-
-	if currentCategoriesString == "" {
-		msg = tgbotapi.NewMessage(chatID, "Вам нечего удалять :(")
-	}
-
-	msg.ReplyMarkup = currentCategoriesKeyboard
-
-	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Error sending send home message: %v", err)
-	}
-}
-
-func sendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
-	msg := tgbotapi.NewMessage(chatID, "Что вы хотите сделать?")
-	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("Нужна помощь"),
-			tgbotapi.NewKeyboardButton("Хочу помогать"),
-		),
-	)
-	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Error sending send home message: %v", err)
-	}
-}
-
-func sendRegisterKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
-	msg := tgbotapi.NewMessage(chatID, "Добро пожаловать! Нажмите для регистрации:")
-	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("Зарегистрироваться"),
-		),
-	)
-	if _, err := bot.Send(msg); err != nil {
-		log.Printf("Error sending welcome message: %v", err)
 	}
 }
 

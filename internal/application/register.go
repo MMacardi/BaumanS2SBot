@@ -1,11 +1,11 @@
-package storage
+package application
 
 import (
 	"BaumanS2SBot/internal/model"
 	"context"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jmoiron/sqlx"
 	"log"
+	"strings"
 )
 
 type UserStorage struct {
@@ -17,28 +17,6 @@ func RegisterUser(ctx context.Context, db *sqlx.DB, user model.User) error {
 
 	_, err := db.ExecContext(ctx, query, user.UserId, user.Username)
 	return err
-}
-
-func AddKeyboardButton(keyboard tgbotapi.ReplyKeyboardMarkup, newButton string) tgbotapi.ReplyKeyboardMarkup {
-
-	button := tgbotapi.NewKeyboardButton(newButton)
-	maxButtonsPerRow := 3
-	// if no buttons
-	if len(keyboard.Keyboard) == 0 {
-		keyboard.Keyboard = append(keyboard.Keyboard, tgbotapi.NewKeyboardButtonRow(button))
-	} else {
-
-		lastRowIndex := len(keyboard.Keyboard) - 1
-		if len(keyboard.Keyboard[lastRowIndex]) < maxButtonsPerRow {
-			// add button to the last row
-			keyboard.Keyboard[lastRowIndex] = append(keyboard.Keyboard[lastRowIndex], button)
-		} else {
-			// if row is full create new row with button
-			keyboard.Keyboard = append(keyboard.Keyboard, tgbotapi.NewKeyboardButtonRow(button))
-		}
-	}
-
-	return keyboard
 }
 
 func AddCategories(ctx context.Context, db *sqlx.DB, userID int64, categoryId int) error {
@@ -69,7 +47,7 @@ func GetCategoriesMap(ctx context.Context, db *sqlx.DB) (map[int]string, error) 
 
 	err := db.SelectContext(ctx, &tempCategories, query)
 	if err != nil {
-		return nil, err // В случае ошибки возвращаем пустую карту и ошибку
+		return nil, err
 	}
 
 	for _, c := range tempCategories {
@@ -101,7 +79,7 @@ func GetEveryUserCategoriesMap(ctx context.Context, db *sqlx.DB) (map[int64][]in
 	return userCategories, nil
 }
 
-func GetUserCategoriesSlice(ctx context.Context, db *sqlx.DB, userID int64) []int {
+func GetUserCurrentCategoriesSlice(ctx context.Context, db *sqlx.DB, userID int64) []int {
 	EveryUserCategoriesMap, err := GetEveryUserCategoriesMap(ctx, db)
 	if err != nil {
 		log.Printf("Error getting user categories map: %v", err)
@@ -126,4 +104,25 @@ func GetCategoriesNameByCategoryID(ctx context.Context, db *sqlx.DB, categoryIDs
 	}
 
 	return userCategoryNameSlice
+}
+
+func GetCurrentUserCategories(ctx context.Context, db *sqlx.DB, chatID int64) []string {
+	currentUserCategories := GetCategoriesNameByCategoryID(ctx, db, GetUserCurrentCategoriesSlice(ctx, db, chatID))
+
+	return currentUserCategories
+}
+
+func GetCurrentUserCategoriesString(ctx context.Context, db *sqlx.DB, chatID int64) string {
+	userCategoriesString := strings.Join(GetCurrentUserCategories(ctx, db, chatID), ",")
+	return userCategoriesString
+}
+
+func IsCategoryAdded(ctx context.Context, db *sqlx.DB, chatID int64, input string) bool {
+	currentUserCategories := GetCurrentUserCategories(ctx, db, chatID)
+	for i := range currentUserCategories {
+		if currentUserCategories[i] == input {
+			return true
+		}
+	}
+	return false
 }
