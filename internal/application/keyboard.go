@@ -91,7 +91,7 @@ func SendUserRemoveCategoriesKeyboard(ctx context.Context, bot *tgbotapi.BotAPI,
 	}
 }
 
-func SendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
+func SendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64, userStates map[int64]int, userID int64, StateHome int) {
 	msg := tgbotapi.NewMessage(chatID, "Что вы хотите сделать?")
 	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
@@ -103,6 +103,7 @@ func SendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
 	if _, err := bot.Send(msg); err != nil {
 		log.Printf("Error sending send home message: %v", err)
 	}
+	userStates[userID] = StateHome
 }
 
 func SendRegisterKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
