@@ -8,7 +8,6 @@ import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jmoiron/sqlx"
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"log"
 	"os"
@@ -45,12 +44,12 @@ func main() {
 	}
 
 	userStates := make(map[int64]int)
-	token := goDotEnvVariable("TELEGRAM_API_TOKEN")
+	token := os.Getenv("TELEGRAM_API_TOKEN")
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		log.Fatalf("Error with the token: %v\n", err)
 	}
-	dataSourceName := goDotEnvVariable("DATASOURCE_NAME")
+	dataSourceName := os.Getenv("DATASOURCE_NAME")
 	db, err := sqlx.Connect("postgres", dataSourceName)
 	if err != nil {
 		log.Fatalf("Error connecting to the database: %v", err)
@@ -410,18 +409,6 @@ func getKeyByValue(myMap map[int]string, valueToFind string) (int, bool) {
 		}
 	}
 	return 0, false
-}
-
-func goDotEnvVariable(key string) string {
-
-	// load .env file
-	err := godotenv.Load("cmd/app/.env")
-
-	if err != nil {
-		log.Fatalf("Error loading .env file")
-	}
-
-	return os.Getenv(key)
 }
 
 func isNewUser(db *sqlx.DB, userID int64) bool {
