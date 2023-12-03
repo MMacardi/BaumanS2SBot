@@ -266,10 +266,7 @@ func main() {
 			if update.Message.Text == "Вернуться на главный экран" {
 				application.SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, StateHome)
 			} else {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы уверены в правильности запроса?")
-				if _, err = bot.Send(msg); err != nil {
-					log.Printf("Error sending confirmation msg: %v", err)
-				}
+				application.SendConfirmationKeyboard(bot, update.Message.Chat.ID)
 				userStates[userID] = StateSendingRequestForHelp
 			}
 

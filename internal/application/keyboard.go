@@ -117,3 +117,16 @@ func SendRegisterKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
 		log.Printf("Error sending welcome message: %v", err)
 	}
 }
+
+func SendConfirmationKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
+	msg := tgbotapi.NewMessage(chatID, "Вы уверены в правильности запроса?")
+	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(
+			tgbotapi.NewKeyboardButton("Да"),
+			tgbotapi.NewKeyboardButton("Нет"),
+		),
+	)
+	if _, err := bot.Send(msg); err != nil {
+		log.Printf("Error sending welcome message: %v", err)
+	}
+}
