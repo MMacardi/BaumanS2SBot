@@ -12,6 +12,7 @@ import (
 	_ "github.com/lib/pq"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -26,6 +27,7 @@ const (
 	StateChoosingCategoryForHelp
 	StateFormingRequestForHelp
 	StateSendingRequestForHelp
+	StateDeletingRequestForHelp
 )
 
 func main() {
@@ -34,6 +36,12 @@ func main() {
 	var helpCategoryID int
 	var parsedDateTime time.Time
 	var dateTimeText string
+
+	loc, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	userStates := make(map[int64]int)
 	token := goDotEnvVariable("TELEGRAM_API_TOKEN")
 	bot, err := tgbotapi.NewBotAPI(token)
@@ -61,36 +69,88 @@ func main() {
 	if err != nil {
 		log.Fatalf("can't take categories map %v", err)
 	}
+	ticker := time.NewTicker(5 * time.Second)
+	go func() {
+		for range ticker.C {
+			_, messageIDToDelete := cache.DeleteExpiredRequests(
+				"./internal/infrastructure/storage/cache/cache.json", loc)
+			if len(messageIDToDelete) != 0 {
+				log.Print(messageIDToDelete)
+				for chatID, messageID := range messageIDToDelete {
+					for _, DeleteID := range messageID {
+						log.Print(DeleteID)
+						msg := tgbotapi.NewDeleteMessage(chatID, DeleteID)
+						if _, err = bot.Send(msg); err != nil {
+							log.Printf("Error deleting expired messages: %v", err)
+						}
+					}
+				}
+			}
+		}
+	}()
 
 	updates := bot.GetUpdatesChan(u)
 	for update := range updates {
-		userID := update.Message.From.ID
-		currentState := userStates[userID]
+		if update.CallbackQuery != nil {
+			callbackData := update.CallbackQuery.Data
+			log.Print(callbackData)
+			var originMessageIDStr string
+			var originMessageID int
+			parts := strings.SplitN(callbackData, ":", 2)
+			log.Print(callbackData)
+			if len(parts) == 2 {
+				// Вторая часть будет содержать originMessageID
+				originMessageIDStr = parts[1]
+
+				// Преобразование строки в int
+				originMessageID, err = strconv.Atoi(originMessageIDStr)
+				if err != nil {
+					fmt.Println("Ошибка при преобразовании:", err)
+					return
+				}
+
+				log.Println("Origin Message ID:", originMessageID)
+				log.Print(parts)
+			} else {
+				log.Println("Строка не содержит ожидаемый формат")
+			}
+			if parts[0] == "deleteRequest" {
+				_, deleteMap := cache.DeleteRequest("./internal/infrastructure/storage/cache/cache.json", originMessageID)
+				if len(deleteMap) != 0 {
+					for chatID, messageID := range deleteMap {
+						for _, DeleteID := range messageID {
+							log.Print(DeleteID)
+							msg := tgbotapi.NewDeleteMessage(chatID, DeleteID)
+							if _, err = bot.Send(msg); err != nil {
+								log.Printf("Error deleting expired messages: %v", err)
+							}
+						}
+						callbackConfig := tgbotapi.NewCallback(update.CallbackQuery.ID, "Ура!!! 🎉")
+						if _, err := bot.Request(callbackConfig); err != nil {
+							log.Print(err)
+						}
+						edit := tgbotapi.NewEditMessageText(update.CallbackQuery.Message.Chat.ID,
+							update.CallbackQuery.Message.MessageID,
+							"Вам помогли с этим запросом 🎉")
+						if _, err := bot.Send(edit); err != nil {
+							log.Printf("Error editing msg: %v", err)
+						}
+
+					}
+				}
+			}
+		}
 		if update.Message == nil {
 			continue
 		}
+		userID := update.Message.From.ID
+		currentState := userStates[userID]
 
 		if isNewUser(db, userID) {
 			userStates[userID] = StateStart
 			log.Print(userStates)
 		}
 		log.Printf("%v", currentState)
-
-		ticker := time.NewTicker(1 * time.Second)
-		go func() {
-			for range ticker.C {
-				_, messageIDToDelete := cache.DeleteExpiredRequests(
-					"./internal/infrastructure/storage/cache/cache.json")
-				if len(messageIDToDelete) != 0 {
-					for chatID, messageID := range messageIDToDelete {
-						msg := tgbotapi.NewDeleteMessage(chatID, messageID)
-						if _, err := bot.Send(msg); err != nil {
-							log.Printf("Error deleting expired messages: %v", err)
-						}
-					}
-				}
-			}
-		}()
 
 		switch currentState {
 		case StateStart:
@@ -139,7 +199,23 @@ func main() {
 				}
 
 				userStates[userID] = StateChoosingCategoryForHelp
+			} // TODO:
+			// else if update.Message.Text == "Удалить или отредактировать запросы на помощь" {
+			//	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Теперь вы можете удалять запросы на помощь")
+			//	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
+			//		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран")))
+			//	if _, err := bot.Send(msg); err != nil {
+			//		log.Printf("Error with sending u can delete keyboard: %v", err)
+			//	}
+			//	userStates[userID] = StateDeletingRequestForHelp
+			// }
+		case StateDeletingRequestForHelp:
+			log.Print(StateDeletingRequestForHelp)
+			if update.Message.Text == "Вернуться на главный экран" {
+				application.SendHomeKeyboard(bot, update.Message.Chat.ID)
+				userStates[userID] = StateHome
 			}
+
 		case StateChoosingCategoryForHelp:
 			if update.Message.Text == "Вернуться на главный экран" {
 				application.SendHomeKeyboard(bot, update.Message.Chat.ID)
@@ -167,14 +243,22 @@ func main() {
 				// date
 				dateTimeText = update.Message.Text
 
-				parsedDateTime, err = time.Parse(dateTimeLayout, dateTimeText)
+				parsedDateTime, err = time.ParseInLocation(dateTimeLayout, dateTimeText, loc)
 
 				if err != nil {
 					log.Printf("Error while parsing date and time: %v", err)
+					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Неправильный формат\n Введите в формате ЧЧ:ММ Д.М.Г (Пример: 19:15 01.12.2023)")
+					if _, err := bot.Send(msg); err != nil {
+						log.Printf("Error with sending error msg  %v", err)
+					}
+					userStates[userID] = StateFormingRequestForHelp
+				} else {
+					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите описание проблемы:")
+					if _, err := bot.Send(msg); err != nil {
+						log.Fatalf("Error with sending Введите описание msg: %v", err)
+					}
+					userStates[userID] = StateSendingRequestForHelp
 				}
-				log.Print(parsedDateTime)
-				userStates[userID] = StateSendingRequestForHelp
-
 			}
 		case StateSendingRequestForHelp:
 			if update.Message.Text == "Вернуться на главный экран" {
@@ -185,32 +269,24 @@ func main() {
 				if err != nil {
 					log.Fatalf("can't get clever user's id %v", err)
 				}
+				log.Print(update.Message.MessageID)
 				originMessageID := update.Message.MessageID
+				log.Print(update.Message.MessageID)
 				originMessage = tgbotapi.NewCopyMessage(update.Message.Chat.ID,
 					update.Message.Chat.ID, originMessageID)
 				for _, cleverUserID := range cleverUserIDSlice {
-					forwardMsg := tgbotapi.NewCopyMessage(cleverUserID,
-						update.Message.Chat.ID, originMessageID)
+
+					// кто отправил и дедлайн
 
 					msg := tgbotapi.NewMessage(cleverUserID, fmt.Sprintf("Тема <b>%v</b> \n"+
 						"Отправил пользователь с id: @%v "+
-						"\nАктульно до %v",
+						"\nАктульно до %v\nОписание:",
 						categoryChosen,
 						update.Message.From.UserName,
 						dateTimeText))
-					sentMsg, err := bot.Send(forwardMsg)
-					if err != nil {
-						log.Fatalf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
-					}
+					msg.ParseMode = "HTML"
 
-					err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
-						cleverUserID, originMessageID, parsedDateTime, sentMsg.MessageID)
-
-					if err != nil {
-						log.Fatalf("can't addRequest to json file: %v", err)
-					}
-
-					sentMsg, err = bot.Send(msg)
+					sentMsg, err := bot.Send(msg)
 					if err != nil {
 						log.Fatalf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
 					}
@@ -225,12 +301,32 @@ func main() {
 						log.Fatalf("can't addRequest to json file: %v", err)
 					}
 
+					// описание задачи
+					forwardMsg := tgbotapi.NewCopyMessage(cleverUserID,
+						update.Message.Chat.ID, originMessageID)
+
+					sentDescriptionMsg, err := bot.Send(forwardMsg)
+					if err != nil {
+						log.Fatalf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
+					}
+
+					err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
+						cleverUserID, originMessageID, parsedDateTime, sentDescriptionMsg.MessageID)
+					log.Print(cleverUserID, originMessageID, parsedDateTime, sentDescriptionMsg.MessageID)
+					if err != nil {
+						log.Fatalf("can't addRequest to json file: %v", err)
+					}
+
 				}
+
+				inlineBtn := tgbotapi.NewInlineKeyboardButtonData("Мне помогли ! 🎉", fmt.Sprintf("deleteRequest:%v", originMessageID))
+				inlineKbd := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(inlineBtn))
+
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID,
-					"Вы успешно сформировали запрос на помощь по теме: <b>"+
-						categoryChosen+
-						"</b>\nОписание: \n")
+					fmt.Sprintf("Вы успешно сформировали запрос на помощь по теме: <b>%v</b>\nОписание: \n", categoryChosen))
 				msg.ParseMode = "HTML"
+
+				msg.ReplyMarkup = inlineKbd
 
 				if _, err := bot.Send(msg); err != nil {
 					log.Fatalf("Can't send cograts forming request: %v", err)

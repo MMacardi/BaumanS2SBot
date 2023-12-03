@@ -97,6 +97,7 @@ func SendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton("Нужна помощь"),
 			tgbotapi.NewKeyboardButton("Хочу помогать"),
+			// tgbotapi.NewKeyboardButton("Удалить или отредактировать запросы на помощь"),
 		),
 	)
 	if _, err := bot.Send(msg); err != nil {

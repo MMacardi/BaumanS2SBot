@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"sync"
 	"time"
 )
+
+var mutex sync.Mutex
 
 type FileData struct {
 	ChatID           int64     `json:"chat_id"`
@@ -19,6 +22,7 @@ type FileDataList struct {
 }
 
 func LoadRequests(filename string) (FileDataList, error) {
+
 	var data FileDataList
 
 	fileBytes, err := os.ReadFile(filename)
@@ -49,18 +53,20 @@ func SaveRequests(filename string, data FileDataList) error {
 }
 
 // DeleteExpiredRequests удаляет устаревшие запросы
-func DeleteExpiredRequests(filename string) (error, map[int64]int) {
+func DeleteExpiredRequests(filename string, loc *time.Location) (error, map[int64][]int) {
+
 	data, err := LoadRequests(filename)
 	if err != nil {
 		return err, nil
 	}
-	messageIDToDelete := make(map[int64]int)
+	messageIDToDelete := make(map[int64][]int)
 	var validRequests []FileData
 	for _, req := range data.Requests {
-		if time.Now().Before(req.ExpiryDate) {
+		if time.Now().In(loc).Before(req.ExpiryDate) {
 			validRequests = append(validRequests, req)
-		} else {
-			messageIDToDelete[req.ChatID] = req.ForwardMessageID
+		} else if time.Now().In(loc).After(req.ExpiryDate) { // чтобы было московское время добавляем 3 часа
+			//messageIDToDelete[req.ChatID] = append(messageIDToDelete[req.ChatID], req.MessageID)
+			messageIDToDelete[req.ChatID] = append(messageIDToDelete[req.ChatID], req.ForwardMessageID)
 		}
 	}
 
@@ -68,21 +74,24 @@ func DeleteExpiredRequests(filename string) (error, map[int64]int) {
 	return SaveRequests(filename, data), messageIDToDelete
 }
 
-func DeleteRequest(filename string, messageID int) error {
+func DeleteRequest(filename string, messageID int) (error, map[int64][]int) {
+
 	data, err := LoadRequests(filename)
 	if err != nil {
-		return err
+		return err, nil
 	}
-
+	deleteMap := make(map[int64][]int)
 	var validRequests []FileData
 	for _, req := range data.Requests {
 		if messageID != req.MessageID {
 			validRequests = append(validRequests, req)
+		} else {
+			deleteMap[req.ChatID] = append(deleteMap[req.ChatID], req.ForwardMessageID)
 		}
 	}
 
 	data.Requests = validRequests
-	return SaveRequests(filename, data)
+	return SaveRequests(filename, data), deleteMap
 }
 
 // AddRequest добавляет новый запрос в файл
