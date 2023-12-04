@@ -30,14 +30,53 @@ const (
 	StateDeletingRequestForHelp
 )
 
+func initDB(dataSourceName string) (*sqlx.DB, error) {
+	db, err := sqlx.Connect("postgres", dataSourceName)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
+
+func maintainDBConnection(dataSourceName string, db *sqlx.DB) {
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				if err := db.Ping(); err != nil {
+					log.Println("Lost database connection. Reconnecting...")
+					err = db.Close()
+					if err != nil {
+						log.Printf("Closing db %v", err)
+					}
+					db, err = initDB(dataSourceName)
+					if err != nil {
+						log.Fatalf("Error re-establishing connection to database: %v", err)
+					}
+				}
+			}
+		}
+	}()
+}
+
+func getCategories(ctx context.Context, db *sqlx.DB) map[int]string {
+	categories, err := application.GetCategoriesMap(ctx, db)
+	if err != nil {
+		log.Fatalf("can't take categories map %v", err)
+	}
+	return categories
+}
+
 func main() {
-	var originMessageID int
 	var originMessage tgbotapi.CopyMessageConfig
 	var categoryChosen string
 	var helpCategoryID int
 	var parsedDateTime time.Time
 	var dateTimeText string
-
+	var originMessageID int
 	loc, err := time.LoadLocation("Europe/Moscow")
 	if err != nil {
 		log.Fatal(err)
@@ -50,7 +89,14 @@ func main() {
 		log.Fatalf("Error with the token: %v\n", err)
 	}
 	dataSourceName := os.Getenv("DATASOURCE_NAME")
-	db, err := sqlx.Connect("postgres", dataSourceName)
+	db, err := initDB(dataSourceName)
+	//db, err := sqlx.Connect("postgres", dataSourceName)
+	if err != nil {
+		log.Fatalf("Error connecting to database: %v", err)
+	}
+
+	maintainDBConnection(dataSourceName, db)
+
 	if err != nil {
 		log.Fatalf("Error connecting to the database: %v", err)
 	}
@@ -65,11 +111,7 @@ func main() {
 	u.Timeout = 60
 
 	ctx := context.TODO()
-	categories, err := application.GetCategoriesMap(ctx, db)
 
-	if err != nil {
-		log.Fatalf("can't take categories map %v", err)
-	}
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
 		for range ticker.C {
@@ -96,7 +138,6 @@ func main() {
 			callbackData := update.CallbackQuery.Data
 			log.Print(callbackData)
 			var originMessageIDStr string
-			var originMessageID int
 			parts := strings.SplitN(callbackData, ":", 2)
 			log.Print(callbackData)
 			if len(parts) == 2 {
@@ -219,7 +260,7 @@ func main() {
 		case StateChoosingCategoryForHelp:
 			if update.Message.Text == "Вернуться на главный экран" {
 				application.SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, StateHome)
-			} else if categoryID, found := getKeyByValue(categories, update.Message.Text); found {
+			} else if categoryID, found := getKeyByValue(getCategories(ctx, db), update.Message.Text); found {
 				categoryChosen = update.Message.Text
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выбрана категория: "+
 					"<b>"+categoryChosen+"</b>"+
@@ -355,7 +396,7 @@ func main() {
 
 		case StateAddCategory:
 			var m string
-			if categoryId, found := getKeyByValue(categories, update.Message.Text); found {
+			if categoryId, found := getKeyByValue(getCategories(ctx, db), update.Message.Text); found {
 				if application.IsCategoryAdded(ctx, db, update.Message.Chat.ID, update.Message.Text) {
 					m = "Вы уже зарегистрированы в категории: " + update.Message.Text + "\n\n"
 				} else {
@@ -384,7 +425,7 @@ func main() {
 			}
 
 		case StateRemoveCategory:
-			if categoryId, found := getKeyByValue(categories, update.Message.Text); found {
+			if categoryId, found := getKeyByValue(getCategories(ctx, db), update.Message.Text); found {
 				err := application.RemoveCategories(ctx, db, userID, categoryId)
 
 				if err != nil {

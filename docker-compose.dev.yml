@@ -1,6 +1,15 @@
 version: '3.1'
 
 services:
+   pgadmin:
+     image: dpage/pgadmin4
+     environment:
+       PGADMIN_DEFAULT_EMAIL: "admin@admin.com"
+       PGADMIN_DEFAULT_PASSWORD: "admin"
+     ports:
+       - "5050:80"
+     depends_on:
+       - db
    db:
     image: postgres:15
     restart: always
@@ -11,6 +20,8 @@ services:
       PGDATA: /var/lib/postgresql/data
     volumes:
       - db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
    bot:
      build: .
      environment:
