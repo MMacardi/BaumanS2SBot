@@ -47,7 +47,7 @@ func GetAllCategoryKeyboard(ctx context.Context, db *sqlx.DB) tgbotapi.ReplyKeyb
 
 }
 
-func GetCategorySelectKeyboard(ctx context.Context, db *sqlx.DB) tgbotapi.ReplyKeyboardMarkup {
+func GetCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) tgbotapi.ReplyKeyboardMarkup {
 	categories, err := GetCategoriesMap(ctx, db)
 
 	if err != nil {
@@ -56,12 +56,33 @@ func GetCategorySelectKeyboard(ctx context.Context, db *sqlx.DB) tgbotapi.ReplyK
 
 	CategoriesKeyboard := tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран"), tgbotapi.NewKeyboardButton("Удалить категории")))
+	tick := ""
 	for _, categoryName := range categories {
-		CategoriesKeyboard = AddKeyboardButton(CategoriesKeyboard, categoryName)
+		tick = "❌"
+		for _, item := range GetCurrentUserCategories(ctx, db, chatID) {
+			if categoryName == item {
+				tick = "✅"
+				break
+			}
+		}
+		CategoriesKeyboard = AddKeyboardButton(CategoriesKeyboard, categoryName+" "+tick)
 	}
-
 	return CategoriesKeyboard
+}
 
+func SendCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64, update tgbotapi.Update, bot *tgbotapi.BotAPI) {
+	categoriesString := GetCurrentUserCategoriesString(ctx, db, update.Message.Chat.ID)
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы зарегистрированы в категориях"+
+		" "+categoriesString)
+
+	if categoriesString == "" {
+		msg = tgbotapi.NewMessage(update.Message.Chat.ID,
+			"Вы не зарегистрированы ни в одной из категорий :(")
+	}
+	msg.ReplyMarkup = GetCategorySelectKeyboard(ctx, db, chatID)
+	if _, err := bot.Send(msg); err != nil {
+		log.Printf("Error sending registration confirmation message: %v", err)
+	}
 }
 
 func GetCurrentUserCategoriesKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) tgbotapi.ReplyKeyboardMarkup {

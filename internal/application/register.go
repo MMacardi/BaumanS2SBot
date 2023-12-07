@@ -1,18 +1,44 @@
 package application
 
 import (
+	"BaumanS2SBot/internal/application/states"
 	"BaumanS2SBot/internal/model"
 	"context"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jmoiron/sqlx"
 	"log"
 	"strings"
+	"time"
 )
 
 type UserStorage struct {
 	db *sqlx.DB
 }
 
-func RegisterUser(ctx context.Context, db *sqlx.DB, user model.User) error {
+func User(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
+	bot *tgbotapi.BotAPI, userID int64, userStates map[int64]int) {
+	if update.Message.Text == "Зарегистрироваться" {
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		user := model.User{
+			UserId:   userID,
+			Username: update.Message.From.UserName,
+		}
+		if err := AddUserToDB(ctx, db, user); err != nil {
+			log.Printf("Error registering user: %v", err)
+			cancel()
+			return
+		}
+		cancel()
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы успешно зарегистрированы!")
+		if _, err := bot.Send(msg); err != nil {
+			log.Printf("Error with register user:%v", err)
+		}
+		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
+
+	}
+}
+
+func AddUserToDB(ctx context.Context, db *sqlx.DB, user model.User) error {
 	query := `INSERT INTO users (user_id, username) VALUES ($1, $2)`
 
 	_, err := db.ExecContext(ctx, query, user.UserId, user.Username)
@@ -125,4 +151,21 @@ func IsCategoryAdded(ctx context.Context, db *sqlx.DB, chatID int64, input strin
 		}
 	}
 	return false
+}
+
+func GetCategories(ctx context.Context, db *sqlx.DB) map[int]string {
+	categories, err := GetCategoriesMap(ctx, db)
+	if err != nil {
+		log.Fatalf("can't take categories map %v", err)
+	}
+	return categories
+}
+
+func GetKeyByValue(myMap map[int]string, valueToFind string) (int, bool) {
+	for key, value := range myMap {
+		if value == valueToFind {
+			return key, true
+		}
+	}
+	return 0, false
 }

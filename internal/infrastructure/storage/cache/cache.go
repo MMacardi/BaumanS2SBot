@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"BaumanS2SBot/internal/model"
 	"encoding/json"
 	"log"
 	"os"
@@ -10,15 +11,8 @@ import (
 
 var mutex sync.Mutex
 
-type FileData struct {
-	ChatID           int64     `json:"chat_id"`
-	MessageID        int       `json:"message_id"`
-	ExpiryDate       time.Time `json:"expiry_date"`
-	ForwardMessageID int       `json:"forward_message_id"`
-}
-
 type FileDataList struct {
-	Requests []FileData `json:"requests"`
+	Requests []model.FileData `json:"requests"`
 }
 
 func LoadRequests(filename string) (FileDataList, error) {
@@ -52,15 +46,15 @@ func SaveRequests(filename string, data FileDataList) error {
 	return os.WriteFile(filename, fileBytes, 0644)
 }
 
-// DeleteExpiredRequests удаляет устаревшие запросы
-func DeleteExpiredRequests(filename string, loc *time.Location) (error, map[int64][]int) {
+// DeleteExpiredRequestsFromCache удаляет устаревшие запросы
+func DeleteExpiredRequestsFromCache(filename string, loc *time.Location) (error, map[int64][]int) {
 
 	data, err := LoadRequests(filename)
 	if err != nil {
 		return err, nil
 	}
 	messageIDToDelete := make(map[int64][]int)
-	var validRequests []FileData
+	var validRequests []model.FileData
 	for _, req := range data.Requests {
 		if time.Now().In(loc).Before(req.ExpiryDate) {
 			validRequests = append(validRequests, req)
@@ -81,7 +75,7 @@ func DeleteRequest(filename string, messageID int) (error, map[int64][]int) {
 		return err, nil
 	}
 	deleteMap := make(map[int64][]int)
-	var validRequests []FileData
+	var validRequests []model.FileData
 	for _, req := range data.Requests {
 		if messageID != req.MessageID {
 			validRequests = append(validRequests, req)
@@ -101,7 +95,7 @@ func AddRequest(filename string, chatID int64, messageID int, expiryDate time.Ti
 		return err
 	}
 
-	newRequest := FileData{
+	newRequest := model.FileData{
 		ChatID:           chatID,
 		MessageID:        messageID,
 		ExpiryDate:       expiryDate,
