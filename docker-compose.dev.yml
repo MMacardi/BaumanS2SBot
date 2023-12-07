@@ -29,8 +29,8 @@ services:
    bot:
      build: .
      environment:
-       TELEGRAM_API_TOKEN: "6975460740:AAHJCEK76EvLTCRMXv9KXl4Icnt35t7bEug"
-       DATASOURCE_NAME: "user=postgres password=postgres dbname=BaumanS2SBot sslmode=disable host=db port=5432"
+       TELEGRAM_API_TOKEN: ""
+       DATASOURCE_NAME: ""
      depends_on:
        - db
      networks:
