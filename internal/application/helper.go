@@ -123,14 +123,14 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 			log.Fatalf("Can't send congrats forming request: %v", err)
 		}
 
-		if _, err := bot.Send(session.OriginMessage); err != nil {
-			log.Fatalf("Can't send cograts forming request: %v", err)
-		}
-
 		inlineBtn := tgbotapi.NewInlineKeyboardButtonData("Мне помогли ! 🎉", fmt.Sprintf("deleteRequest:%v", session.OriginMessageID))
 		inlineKbd := tgbotapi.NewInlineKeyboardMarkup(tgbotapi.NewInlineKeyboardRow(inlineBtn))
 
 		session.OriginMessage.ReplyMarkup = inlineKbd
+
+		if _, err := bot.Send(session.OriginMessage); err != nil {
+			log.Fatalf("Can't send cograts forming request: %v", err)
+		}
 
 		cleverUserIDSlice, err := GetCleverUsersSlice(ctx, db, session.HelpCategoryID)
 
