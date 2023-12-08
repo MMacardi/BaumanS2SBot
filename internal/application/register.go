@@ -79,7 +79,6 @@ func GetCategoriesMap(ctx context.Context, db *sqlx.DB) (map[int]string, error) 
 	for _, c := range tempCategories {
 		categories[c.ID] = c.Name
 	}
-
 	return categories, nil
 }
 

@@ -14,35 +14,6 @@ import (
 	"time"
 )
 
-func Start(session *model.UserSession, update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
-	bot *tgbotapi.BotAPI, userID int64, chatID int64, currentState int, userStates map[int64]int, dateTimeLayout string,
-	loc *time.Location) {
-	switch currentState {
-	case states.StateHome:
-		Page(update, ctx, db, bot, userID, userStates, chatID)
-	case states.StateStart:
-		User(update, ctx, db, bot, userID, userStates)
-	case states.StateAddCategory:
-		Add(update, ctx, db, bot, userID, userStates, chatID)
-	case states.StateRemoveCategory:
-		log.Print(session)
-		Remove(update, ctx, db, bot, userID, userStates)
-	case states.StateChoosingCategoryForHelp:
-		log.Print(*session)
-		ChooseCategory(session, update, ctx, db, bot, userID, userStates)
-	case states.StateFormingRequestForHelp:
-		log.Print(*session)
-		FormingRequest(session, update, bot, userID, userStates, dateTimeLayout, loc)
-	case states.StateConfirmationRequestForHelp:
-		log.Print(*session)
-		ConfirmRequest(session, update, bot, userID, chatID, userStates)
-	case states.StateSendingRequestForHelp:
-		log.Print(*session)
-		SendingRequest(session, ctx, db, update, bot, userID, userStates)
-	}
-	return
-}
-
 func IsNewUser(db *sqlx.DB, userID int64) bool {
 	var count int
 	err := db.Get(&count, "SELECT count(*) FROM users WHERE user_id = $1", userID)
@@ -97,6 +68,33 @@ func DeleteExpiredRequests(bot *tgbotapi.BotAPI, loc *time.Location, ticker *tim
 			}
 		}
 	}
+}
+
+func Start(session *model.UserSession, update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
+	bot *tgbotapi.BotAPI, userID int64, chatID int64, currentState int, userStates map[int64]int, dateTimeLayout string,
+	loc *time.Location, debug bool) {
+	switch currentState {
+	case states.StateHome:
+		Page(update, ctx, db, bot, userID, userStates, chatID)
+	case states.StateStart:
+		User(update, ctx, db, bot, userID, userStates)
+	case states.StateAddCategory:
+		Add(update, ctx, db, bot, userID, userStates, chatID)
+	case states.StateRemoveCategory:
+		Remove(update, ctx, db, bot, userID, userStates)
+	case states.StateChoosingCategoryForHelp:
+		ChooseCategory(session, update, ctx, db, bot, userID, userStates)
+	case states.StateFormingRequestForHelp:
+		FormingRequest(session, update, bot, userID, userStates, dateTimeLayout, loc)
+	case states.StateConfirmationRequestForHelp:
+		ConfirmRequest(session, update, bot, userID, chatID, userStates)
+	case states.StateSendingRequestForHelp:
+		SendingRequest(session, ctx, db, update, bot, userID, userStates, debug)
+	case states.StateUserRequestsForHelp:
+		// TODO
+	}
+
+	return
 }
 
 func ProcessCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI) {

@@ -5,13 +5,14 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jmoiron/sqlx"
 	"log"
+	"sort"
 	"strings"
 )
 
 func AddKeyboardButton(keyboard tgbotapi.ReplyKeyboardMarkup, newButton string) tgbotapi.ReplyKeyboardMarkup {
 
 	button := tgbotapi.NewKeyboardButton(newButton)
-	maxButtonsPerRow := 3
+	maxButtonsPerRow := 2
 	// if no buttons
 	if len(keyboard.Keyboard) == 0 {
 		keyboard.Keyboard = append(keyboard.Keyboard, tgbotapi.NewKeyboardButtonRow(button))
@@ -30,7 +31,7 @@ func AddKeyboardButton(keyboard tgbotapi.ReplyKeyboardMarkup, newButton string) 
 	return keyboard
 }
 
-func GetAllCategoryKeyboard(ctx context.Context, db *sqlx.DB) tgbotapi.ReplyKeyboardMarkup {
+func GetHelpCategoryKeyboard(ctx context.Context, db *sqlx.DB) tgbotapi.ReplyKeyboardMarkup {
 	categories, err := GetCategoriesMap(ctx, db)
 
 	if err != nil {
@@ -49,25 +50,31 @@ func GetAllCategoryKeyboard(ctx context.Context, db *sqlx.DB) tgbotapi.ReplyKeyb
 
 func GetCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) tgbotapi.ReplyKeyboardMarkup {
 	categories, err := GetCategoriesMap(ctx, db)
-
 	if err != nil {
 		log.Fatalf("Error getting categories %v", err)
 	}
 
-	CategoriesKeyboard := tgbotapi.NewReplyKeyboard(
+	var categoryNames []string
+	for _, name := range categories {
+		categoryNames = append(categoryNames, name)
+	}
+	sort.Strings(categoryNames)
+
+	categoriesKeyboard := tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран"), tgbotapi.NewKeyboardButton("Удалить категории")))
 	tick := ""
-	for _, categoryName := range categories {
+	userCategories := GetCurrentUserCategories(ctx, db, chatID)
+	for _, categoryName := range categoryNames {
 		tick = "❌"
-		for _, item := range GetCurrentUserCategories(ctx, db, chatID) {
+		for _, item := range userCategories {
 			if categoryName == item {
 				tick = "✅"
 				break
 			}
 		}
-		CategoriesKeyboard = AddKeyboardButton(CategoriesKeyboard, categoryName+" "+tick)
+		categoriesKeyboard = AddKeyboardButton(categoriesKeyboard, categoryName+" "+tick)
 	}
-	return CategoriesKeyboard
+	return categoriesKeyboard
 }
 
 func SendCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64, update tgbotapi.Update, bot *tgbotapi.BotAPI) {

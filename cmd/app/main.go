@@ -53,6 +53,9 @@ func main() {
 
 	var userStates = make(map[int64]int)
 	session := &model.UserSession{}
+
+	debug := true
+
 	updates := bot.GetUpdatesChan(u)
 	for update := range updates {
 		if update.CallbackQuery != nil {
@@ -72,7 +75,7 @@ func main() {
 			userStates[userID] = states.StateStart
 		}
 
-		application.Start(session, update, ctx, db, bot, userID, chatID, userStates[userID], userStates, dateTimeLayout, loc)
+		application.Start(session, update, ctx, db, bot, userID, chatID, userStates[userID], userStates, dateTimeLayout, loc, debug)
 
 	}
 }

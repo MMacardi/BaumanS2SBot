@@ -9,4 +9,5 @@ const (
 	StateFormingRequestForHelp
 	StateConfirmationRequestForHelp
 	StateSendingRequestForHelp
+	StateUserRequestsForHelp
 )
