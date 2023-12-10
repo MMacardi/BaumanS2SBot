@@ -117,9 +117,10 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
 	} else if update.Message.Text == "Да" {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
-			fmt.Sprintf("Вы успешно сформировали запрос на помощь по теме: <b>%v</b>\nОписание: \n", session.CategoryChosen))
+			fmt.Sprintf("Вы успешно сформировали запрос на помощь по теме: <b>%v</b>\nСрок до: <b>%v</b>\nОписание: \n", session.CategoryChosen, session.DateTimeText))
 		msg.ParseMode = "HTML"
-		if _, err := bot.Send(msg); err != nil {
+		_, err := bot.Send(msg)
+		if err != nil {
 			log.Fatalf("Can't send congrats forming request: %v", err)
 		}
 
@@ -128,8 +129,19 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 
 		session.OriginMessage.ReplyMarkup = inlineKbd
 
-		if _, err := bot.Send(session.OriginMessage); err != nil {
+		origMsg, err := bot.Send(session.OriginMessage)
+		if err != nil {
 			log.Fatalf("Can't send cograts forming request: %v", err)
+		}
+
+		err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
+			userID,
+			origMsg.MessageID,
+			session.ParsedDateTime,
+			0)
+
+		if err != nil {
+			log.Fatalf("can't addRequest to json file: %v", err)
 		}
 
 		cleverUserIDSlice, err := GetCleverUsersSlice(ctx, db, session.HelpCategoryID)

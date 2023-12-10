@@ -47,25 +47,27 @@ func SaveRequests(filename string, data FileDataList) error {
 }
 
 // DeleteExpiredRequestsFromCache удаляет устаревшие запросы
-func DeleteExpiredRequestsFromCache(filename string, loc *time.Location) (error, map[int64][]int) {
+func DeleteExpiredRequestsFromCache(filename string, loc *time.Location) (error, map[int64][]int, map[int64][]int) {
 
 	data, err := LoadRequests(filename)
 	if err != nil {
-		return err, nil
+		return err, nil, nil
 	}
 	messageIDToDelete := make(map[int64][]int)
+	messageIDToEdit := make(map[int64][]int)
 	var validRequests []model.FileData
 	for _, req := range data.Requests {
 		if time.Now().In(loc).Before(req.ExpiryDate) {
 			validRequests = append(validRequests, req)
-		} else if time.Now().In(loc).After(req.ExpiryDate) { // чтобы было московское время добавляем 3 часа
-			//messageIDToDelete[req.ChatID] = append(messageIDToDelete[req.ChatID], req.MessageID)
+		} else if time.Now().In(loc).After(req.ExpiryDate) && req.ForwardMessageID != 0 { // чтобы было московское время добавляем 3 часа
 			messageIDToDelete[req.ChatID] = append(messageIDToDelete[req.ChatID], req.ForwardMessageID)
+		} else if time.Now().In(loc).After(req.ExpiryDate) && req.ForwardMessageID == 0 {
+			messageIDToEdit[req.ChatID] = append(messageIDToDelete[req.ChatID], req.MessageID)
 		}
 	}
 
 	data.Requests = validRequests
-	return SaveRequests(filename, data), messageIDToDelete
+	return SaveRequests(filename, data), messageIDToDelete, messageIDToEdit
 }
 
 func DeleteRequest(filename string, messageID int) (error, map[int64][]int) {

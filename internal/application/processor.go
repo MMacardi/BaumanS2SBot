@@ -1,6 +1,7 @@
 package application
 
 import (
+	"BaumanS2SBot/internal/application/media"
 	"BaumanS2SBot/internal/application/states"
 	"BaumanS2SBot/internal/infrastructure/storage/cache"
 	"BaumanS2SBot/internal/model"
@@ -53,17 +54,35 @@ func MaintainDBConnection(dataSourceName string, db *sqlx.DB, ticker *time.Ticke
 
 func DeleteExpiredRequests(bot *tgbotapi.BotAPI, loc *time.Location, ticker *time.Ticker) {
 	for range ticker.C {
-		_, messageIDToDelete := cache.DeleteExpiredRequestsFromCache(
+		_, messageIDToDelete, messageIDToEdit := cache.DeleteExpiredRequestsFromCache(
 			"./internal/infrastructure/storage/cache/cache.json", loc)
 		if len(messageIDToDelete) != 0 {
 			log.Print(messageIDToDelete)
 			for chatID, messageID := range messageIDToDelete {
-				for _, DeleteID := range messageID {
-					log.Print(DeleteID)
-					msg := tgbotapi.NewDeleteMessage(chatID, DeleteID)
+				for _, deleteID := range messageID {
+					log.Print(deleteID)
+					msg := tgbotapi.NewDeleteMessage(chatID, deleteID)
 					if _, err := bot.Send(msg); err != nil {
 						log.Printf("Error deleting expired messages: %v", err)
 					}
+				}
+			}
+			for chatID, messageID := range messageIDToEdit {
+				for _, editID := range messageID {
+					msg := tgbotapi.NewMessage(chatID, "У запроса с данным ниже описанием прошел срок, он удален\n"+
+						"Если помощь с ним еще нужна сформируйте его еще раз")
+					if _, err := bot.Send(msg); err != nil {
+						log.Printf("Error deleting expired messages: %v", err)
+					}
+					msgFwd := tgbotapi.NewCopyMessage(chatID, chatID, editID)
+					if _, err := bot.Send(msgFwd); err != nil {
+						log.Printf("Error deleting expired messages: %v", err)
+					}
+					msg1 := tgbotapi.NewDeleteMessage(chatID, editID)
+					if _, err := bot.Send(msg1); err != nil {
+						log.Printf("Error deleting expired messages: %v", err)
+					}
+
 				}
 			}
 		}
@@ -136,48 +155,8 @@ func DeleteCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, originMessageI
 			log.Print(err)
 		}
 	}
-
 	originMessage := update.CallbackQuery.Message
 
-	if originMessage.Document != nil {
-		edit := tgbotapi.NewEditMessageCaption(originMessage.Chat.ID,
-			originMessage.MessageID,
-			"Вам помогли с этим запросом 🎉")
+	media.Exist(originMessage, bot, "Вам помогли с этим запросом 🎉")
 
-		if _, err := bot.Send(edit); err != nil {
-			log.Printf("Error editing msg with document: %v", err)
-		}
-	} else if originMessage.Photo != nil && len(originMessage.Photo) > 0 {
-		edit := tgbotapi.NewEditMessageCaption(originMessage.Chat.ID,
-			originMessage.MessageID,
-			"Вам помогли с этим запросом 🎉")
-
-		if _, err := bot.Send(edit); err != nil {
-			log.Printf("Error editing text msg: %v", err)
-		}
-	} else if originMessage.Audio != nil {
-		edit := tgbotapi.NewEditMessageCaption(originMessage.Chat.ID,
-			originMessage.MessageID,
-			"Вам помогли с этим запросом 🎉")
-
-		if _, err := bot.Send(edit); err != nil {
-			log.Printf("Error editing text msg: %v", err)
-		}
-	} else if originMessage.Video != nil {
-		edit := tgbotapi.NewEditMessageCaption(originMessage.Chat.ID,
-			originMessage.MessageID,
-			"Вам помогли с этим запросом 🎉")
-
-		if _, err := bot.Send(edit); err != nil {
-			log.Printf("Error editing text msg: %v", err)
-		}
-	} else {
-		edit := tgbotapi.NewEditMessageCaption(originMessage.Chat.ID,
-			originMessage.MessageID,
-			"Вам помогли с этим запросом 🎉")
-
-		if _, err := bot.Send(edit); err != nil {
-			log.Printf("Error editing text msg: %v", err)
-		}
-	}
 }
