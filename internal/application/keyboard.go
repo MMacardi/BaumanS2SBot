@@ -152,6 +152,7 @@ func SendConfirmationKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton("Да"),
 			tgbotapi.NewKeyboardButton("Нет"),
+			tgbotapi.NewKeyboardButton("Вернуться на главный экран"),
 		),
 	)
 	if _, err := bot.Send(msg); err != nil {

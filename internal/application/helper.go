@@ -97,17 +97,26 @@ func FormingRequest(session *model.UserSession, update tgbotapi.Update,
 
 func ConfirmRequest(session *model.UserSession, update tgbotapi.Update,
 	bot *tgbotapi.BotAPI, userID int64, chatID int64, userStates map[int64]int) {
+	if update.Message.Text == "Вернуться на главный экран" {
+		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
+		return
+	}
+	if update.Message.Sticker != nil {
+		msg := tgbotapi.NewMessage(chatID, "Некорректное описание(нельзя использовать стикер в качестве описания)")
+
+		if _, err := bot.Send(msg); err != nil {
+			log.Printf("Error sticker video msg: %v", err)
+		}
+		userStates[userID] = states.StateConfirmationRequestForHelp
+		return
+	}
 	originMessageID := update.Message.MessageID
 	session.OriginMessageID = originMessageID
 	originMessage := tgbotapi.NewCopyMessage(chatID,
 		chatID, originMessageID)
 	session.OriginMessage = originMessage
-	if update.Message.Text == "Вернуться на главный экран" {
-		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
-	} else {
-		SendConfirmationKeyboard(bot, update.Message.Chat.ID)
-		userStates[userID] = states.StateSendingRequestForHelp
-	}
+	SendConfirmationKeyboard(bot, update.Message.Chat.ID)
+	userStates[userID] = states.StateSendingRequestForHelp
 	return
 }
 
