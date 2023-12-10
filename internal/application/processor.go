@@ -136,10 +136,48 @@ func DeleteCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, originMessageI
 			log.Print(err)
 		}
 	}
-	edit := tgbotapi.NewEditMessageText(update.CallbackQuery.Message.Chat.ID,
-		update.CallbackQuery.Message.MessageID,
-		"Вам помогли с этим запросом 🎉")
-	if _, err := bot.Send(edit); err != nil {
-		log.Printf("Error editing msg: %v", err)
+
+	originMessage := update.CallbackQuery.Message
+
+	if originMessage.Document != nil {
+		edit := tgbotapi.NewEditMessageCaption(originMessage.Chat.ID,
+			originMessage.MessageID,
+			"Вам помогли с этим запросом 🎉")
+
+		if _, err := bot.Send(edit); err != nil {
+			log.Printf("Error editing msg with document: %v", err)
+		}
+	} else if originMessage.Photo != nil && len(originMessage.Photo) > 0 {
+		edit := tgbotapi.NewEditMessageCaption(originMessage.Chat.ID,
+			originMessage.MessageID,
+			"Вам помогли с этим запросом 🎉")
+
+		if _, err := bot.Send(edit); err != nil {
+			log.Printf("Error editing text msg: %v", err)
+		}
+	} else if originMessage.Audio != nil {
+		edit := tgbotapi.NewEditMessageCaption(originMessage.Chat.ID,
+			originMessage.MessageID,
+			"Вам помогли с этим запросом 🎉")
+
+		if _, err := bot.Send(edit); err != nil {
+			log.Printf("Error editing text msg: %v", err)
+		}
+	} else if originMessage.Video != nil {
+		edit := tgbotapi.NewEditMessageCaption(originMessage.Chat.ID,
+			originMessage.MessageID,
+			"Вам помогли с этим запросом 🎉")
+
+		if _, err := bot.Send(edit); err != nil {
+			log.Printf("Error editing text msg: %v", err)
+		}
+	} else {
+		edit := tgbotapi.NewEditMessageCaption(originMessage.Chat.ID,
+			originMessage.MessageID,
+			"Вам помогли с этим запросом 🎉")
+
+		if _, err := bot.Send(edit); err != nil {
+			log.Printf("Error editing text msg: %v", err)
+		}
 	}
 }

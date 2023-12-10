@@ -17,7 +17,7 @@ type UserStorage struct {
 
 func User(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 	bot *tgbotapi.BotAPI, userID int64, userStates map[int64]int) {
-	if update.Message.Text == "Зарегистрироваться" {
+	if update.Message.Text == "Начать" {
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		user := model.User{
 			UserId:   userID,
@@ -29,10 +29,6 @@ func User(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 			return
 		}
 		cancel()
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы успешно зарегистрированы!")
-		if _, err := bot.Send(msg); err != nil {
-			log.Printf("Error with register user:%v", err)
-		}
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
 
 	}

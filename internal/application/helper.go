@@ -33,9 +33,9 @@ func ChooseCategory(session *model.UserSession, update tgbotapi.Update, ctx cont
 	} else if categoryID, found := GetKeyByValue(GetCategories(ctx, db), update.Message.Text); found {
 		categoryChosen := update.Message.Text
 		session.CategoryChosen = categoryChosen
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выбрана категория: "+
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выбран предмет: "+
 			"<b>"+categoryChosen+"</b>"+
-			"\nНапишите дедлайн вашего запроса на помощь в формате Часы:Минуты Дата.Месяц.Год (Пример: 19:15 01.12.2023)")
+			"\nНапишите сроки вашего запроса на помощь в формате Часы:Минуты Дата.Месяц.Год (Пример: 19:15 01.12.2023)")
 		msg.ParseMode = "HTML"
 		msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 			tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран")))
@@ -48,7 +48,7 @@ func ChooseCategory(session *model.UserSession, update tgbotapi.Update, ctx cont
 		session.HelpCategoryID = helpCategoryID
 		return
 	} else {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выберите категорию из клавиатуры ниже:")
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выберите предмет из клавиатуры ниже:")
 		if _, err := bot.Send(msg); err != nil {
 			log.Printf("Error with sending chosen category msg %v", err)
 		}
@@ -185,7 +185,7 @@ func SendingToCleverUsers(session *model.UserSession, update tgbotapi.Update,
 
 		msg := tgbotapi.NewMessage(cleverUserID, fmt.Sprintf("Тема <b>%v</b> \n"+
 			"Отправил пользователь с id: @%v "+
-			"\nАктульно до %v\nОписание:",
+			"\nАктуально до %v\nОписание:",
 			session.CategoryChosen,
 			update.Message.From.UserName,
 			session.DateTimeText))

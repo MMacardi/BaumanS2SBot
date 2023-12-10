@@ -32,7 +32,7 @@ func Add(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 	categoryName := update.Message.Text[:len(update.Message.Text)-4]
 	if categoryId, found := GetKeyByValue(GetCategories(ctx, db), categoryName); found {
 		if IsCategoryAdded(ctx, db, update.Message.Chat.ID, categoryName) {
-			m = "Вы уже зарегистрированы в категории: " + categoryName + "\n\n"
+			m = "Вы уже зарегистрированы в предмете: " + categoryName + "\n\n"
 		} else {
 			err := AddCategories(ctx, db, userID, categoryId)
 			if err != nil {
@@ -41,7 +41,7 @@ func Add(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 			}
 		}
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, m+
-			"Вы зарегистрированы в категориях: "+
+			"Вы зарегистрированы в предметах: "+
 			strings.Join(GetCategoriesNameByCategoryID(ctx, db,
 				GetUserCurrentCategoriesSlice(ctx, db, update.Message.Chat.ID)), ","))
 		msg.ReplyMarkup = GetCategorySelectKeyboard(ctx, db, chatID)
@@ -52,7 +52,7 @@ func Add(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 
 	} else if update.Message.Text == "Вернуться на главный экран" {
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
-	} else if update.Message.Text == "Удалить категории" {
+	} else if update.Message.Text == "Удалить предметы" {
 		SendUserRemoveCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID,
 			GetCurrentUserCategoriesKeyboard(ctx, db, update.Message.Chat.ID))
 

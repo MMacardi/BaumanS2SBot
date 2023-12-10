@@ -61,7 +61,7 @@ func GetCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) t
 	sort.Strings(categoryNames)
 
 	categoriesKeyboard := tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран"), tgbotapi.NewKeyboardButton("Удалить категории")))
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран"), tgbotapi.NewKeyboardButton("Удалить предметы")))
 	tick := ""
 	userCategories := GetCurrentUserCategories(ctx, db, chatID)
 	for _, categoryName := range categoryNames {
@@ -79,12 +79,12 @@ func GetCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) t
 
 func SendCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64, update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 	categoriesString := GetCurrentUserCategoriesString(ctx, db, update.Message.Chat.ID)
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы зарегистрированы в категориях"+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы зарегистрированы в предметах"+
 		" "+categoriesString)
 
 	if categoriesString == "" {
 		msg = tgbotapi.NewMessage(update.Message.Chat.ID,
-			"Вы не зарегистрированы ни в одной из категорий :(")
+			"Вы не зарегистрированы ни в одном предмете :(")
 	}
 	msg.ReplyMarkup = GetCategorySelectKeyboard(ctx, db, chatID)
 	if _, err := bot.Send(msg); err != nil {
@@ -107,7 +107,7 @@ func SendUserRemoveCategoriesKeyboard(ctx context.Context, bot *tgbotapi.BotAPI,
 	currentCategoriesString := strings.Join(GetCategoriesNameByCategoryID(ctx, db,
 		GetUserCurrentCategoriesSlice(ctx, db, chatID)), ",")
 
-	msg := tgbotapi.NewMessage(chatID, "Вы зарегистрированы в категориях"+" "+currentCategoriesString)
+	msg := tgbotapi.NewMessage(chatID, "Вы зарегистрированы в предметах"+" "+currentCategoriesString)
 
 	if currentCategoriesString == "" {
 		msg = tgbotapi.NewMessage(chatID, "Вам нечего удалять :(")
@@ -135,10 +135,10 @@ func SendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64, userStates map[int64]i
 }
 
 func SendRegisterKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
-	msg := tgbotapi.NewMessage(chatID, "Добро пожаловать! Нажмите для регистрации:")
+	msg := tgbotapi.NewMessage(chatID, "Добро пожаловать! Нажмите, чтобы начать:")
 	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("Зарегистрироваться"),
+			tgbotapi.NewKeyboardButton("Начать"),
 		),
 	)
 	if _, err := bot.Send(msg); err != nil {
