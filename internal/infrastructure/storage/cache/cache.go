@@ -59,10 +59,11 @@ func DeleteExpiredRequestsFromCache(filename string, loc *time.Location) (error,
 	for _, req := range data.Requests {
 		if time.Now().In(loc).Before(req.ExpiryDate) {
 			validRequests = append(validRequests, req)
-		} else if time.Now().In(loc).After(req.ExpiryDate) && req.ForwardMessageID != 0 { // чтобы было московское время добавляем 3 часа
+		} else if time.Now().In(loc).After(req.ExpiryDate) && req.OrigMessageID != 0 { // чтобы было московское время добавляем 3 часа
 			messageIDToDelete[req.ChatID] = append(messageIDToDelete[req.ChatID], req.ForwardMessageID)
-		} else if time.Now().In(loc).After(req.ExpiryDate) && req.ForwardMessageID == 0 {
-			messageIDToEdit[req.ChatID] = append(messageIDToDelete[req.ChatID], req.MessageID)
+		} else if time.Now().In(loc).After(req.ExpiryDate) && req.OrigMessageID == 0 {
+			messageIDToEdit[req.ChatID] = append(messageIDToDelete[req.ChatID], req.ForwardMessageID)
+			log.Print(req.ChatID, req.ForwardMessageID)
 		}
 	}
 
@@ -70,16 +71,25 @@ func DeleteExpiredRequestsFromCache(filename string, loc *time.Location) (error,
 	return SaveRequests(filename, data), messageIDToDelete, messageIDToEdit
 }
 
-func DeleteRequest(filename string, messageID int) (error, map[int64][]int) {
-
+func DeleteRequest(filename string, messageID int) (map[int64][]int, map[int64]map[int]bool, error) {
 	data, err := LoadRequests(filename)
 	if err != nil {
-		return err, nil
+		return nil, nil, err
 	}
+
 	deleteMap := make(map[int64][]int)
+	editMap := make(map[int64]map[int]bool)
+
 	var validRequests []model.FileData
 	for _, req := range data.Requests {
-		if messageID != req.MessageID {
+		if req.OrigMessageID == 0 {
+			if editMap[req.ChatID] == nil {
+				editMap[req.ChatID] = make(map[int]bool)
+			}
+			editMap[req.ChatID][req.ForwardMessageID] = req.IsMedia
+		}
+
+		if messageID != req.OrigMessageID {
 			validRequests = append(validRequests, req)
 		} else {
 			deleteMap[req.ChatID] = append(deleteMap[req.ChatID], req.ForwardMessageID)
@@ -87,11 +97,17 @@ func DeleteRequest(filename string, messageID int) (error, map[int64][]int) {
 	}
 
 	data.Requests = validRequests
-	return SaveRequests(filename, data), deleteMap
+
+	err = SaveRequests(filename, data)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return deleteMap, editMap, nil
 }
 
 // AddRequest добавляет новый запрос в файл
-func AddRequest(filename string, chatID int64, messageID int, expiryDate time.Time, forwardMessageID int) error {
+func AddRequest(filename string, chatID int64, messageID int, expiryDate time.Time, forwardMessageID int, isMedia bool) error {
 	data, err := LoadRequests(filename)
 	if err != nil {
 		return err
@@ -99,9 +115,10 @@ func AddRequest(filename string, chatID int64, messageID int, expiryDate time.Ti
 
 	newRequest := model.FileData{
 		ChatID:           chatID,
-		MessageID:        messageID,
+		OrigMessageID:    messageID,
 		ExpiryDate:       expiryDate,
 		ForwardMessageID: forwardMessageID,
+		IsMedia:          isMedia,
 	}
 	data.Requests = append(data.Requests, newRequest)
 	return SaveRequests(filename, data)

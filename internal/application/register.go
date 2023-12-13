@@ -1,6 +1,7 @@
 package application
 
 import (
+	"BaumanS2SBot/internal/application/commands"
 	"BaumanS2SBot/internal/application/states"
 	"BaumanS2SBot/internal/model"
 	"context"
@@ -29,6 +30,11 @@ func User(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 			return
 		}
 		cancel()
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Добро пожаловать!")
+		if _, err := bot.Send(msg); err != nil {
+			log.Printf("Error sending greeting msg %v", err)
+		}
+		commands.SendHelpMessage(bot, update.Message.Chat.ID)
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
 
 	}

@@ -1,6 +1,7 @@
 package application
 
 import (
+	"BaumanS2SBot/internal/application/commands"
 	"BaumanS2SBot/internal/application/media"
 	"BaumanS2SBot/internal/application/states"
 	"BaumanS2SBot/internal/infrastructure/storage/cache"
@@ -89,9 +90,28 @@ func DeleteExpiredRequests(bot *tgbotapi.BotAPI, loc *time.Location, ticker *tim
 	}
 }
 
-func Start(session *model.UserSession, update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
+func Start(userSessions map[int64]*model.UserSession, update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 	bot *tgbotapi.BotAPI, userID int64, chatID int64, currentState int, userStates map[int64]int, dateTimeLayout string,
 	loc *time.Location, debug bool) {
+
+	if _, ok := userSessions[userID]; !ok {
+		userSessions[userID] = &model.UserSession{}
+	}
+
+	session := userSessions[userID]
+
+	if update.Message.IsCommand() {
+		switch update.Message.Command() {
+		case "start":
+			if IsNewUser(db, userID) {
+				SendRegisterKeyboard(bot, update.Message.Chat.ID)
+				userStates[userID] = states.StateStart
+			}
+		case "help":
+			commands.SendHelpMessage(bot, chatID)
+		}
+	}
+
 	switch currentState {
 	case states.StateHome:
 		Page(update, ctx, db, bot, userID, userStates, chatID)
@@ -139,24 +159,36 @@ func ProcessCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 }
 
 func DeleteCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, originMessageID int) {
-	_, deleteMap := cache.DeleteRequest("./internal/infrastructure/storage/cache/cache.json", originMessageID)
+	callbackConfig := tgbotapi.NewCallback(update.CallbackQuery.ID, "Ура!!! 🎉")
+	if _, err := bot.Request(callbackConfig); err != nil {
+		log.Print(err)
+	}
+
+	originMessage := update.CallbackQuery.Message
+	deleteMap, editMap, _ := cache.DeleteRequest("./internal/infrastructure/storage/cache/cache.json", originMessageID)
 	if len(deleteMap) == 0 {
 		return
 	}
+
+	for chatID, innerMap := range editMap {
+		for forwardMessageID, isMedia := range innerMap {
+			if forwardMessageID == originMessage.MessageID {
+				media.IfExist(isMedia, chatID, forwardMessageID, bot, "Вам помогли с этим запросом 🎉")
+			} else {
+
+				media.IfExist(isMedia, chatID, forwardMessageID, bot, "Ваше сообщение было удалено админом")
+			}
+		}
+	}
+
 	for chatID, messageID := range deleteMap {
 		for _, DeleteID := range messageID {
 			msg := tgbotapi.NewDeleteMessage(chatID, DeleteID)
 			if _, err := bot.Send(msg); err != nil {
 				log.Printf("Error deleting expired messages: %v", err)
 			}
-		}
-		callbackConfig := tgbotapi.NewCallback(update.CallbackQuery.ID, "Ура!!! 🎉")
-		if _, err := bot.Request(callbackConfig); err != nil {
-			log.Print(err)
+
 		}
 	}
-	originMessage := update.CallbackQuery.Message
-
-	media.Exist(originMessage, bot, "Вам помогли с этим запросом 🎉")
 
 }

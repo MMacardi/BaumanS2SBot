@@ -1,6 +1,7 @@
 package application
 
 import (
+	"BaumanS2SBot/internal/application/media"
 	"BaumanS2SBot/internal/application/states"
 	"BaumanS2SBot/internal/infrastructure/storage/cache"
 	"BaumanS2SBot/internal/model"
@@ -102,10 +103,10 @@ func ConfirmRequest(session *model.UserSession, update tgbotapi.Update,
 		return
 	}
 	if update.Message.Sticker != nil {
-		msg := tgbotapi.NewMessage(chatID, "Некорректное описание(нельзя использовать стикер в качестве описания)")
+		msg := tgbotapi.NewMessage(chatID, "Некорректное описание (нельзя использовать стикер в качестве описания)")
 
 		if _, err := bot.Send(msg); err != nil {
-			log.Printf("Error sticker video msg: %v", err)
+			log.Printf("Error sending sticker msg: %v", err)
 		}
 		userStates[userID] = states.StateConfirmationRequestForHelp
 		return
@@ -143,11 +144,16 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 			log.Fatalf("Can't send cograts forming request: %v", err)
 		}
 
+		isMedia := media.Exist(origMsg)
+
 		err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
 			userID,
-			origMsg.MessageID,
+			0,
 			session.ParsedDateTime,
-			0)
+			origMsg.MessageID,
+			isMedia)
+
+		log.Print(origMsg.MessageID, userID, isMedia)
 
 		if err != nil {
 			log.Fatalf("can't addRequest to json file: %v", err)
@@ -165,7 +171,7 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 			cleverUserIDSlice = append(cleverUserIDSlice, adminID)
 		}
 
-		SendingToCleverUsers(session, update, bot, cleverUserIDSlice)
+		SendingToCleverUsers(session, update, bot, cleverUserIDSlice, isMedia)
 
 		if debug == false {
 
@@ -200,7 +206,7 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 }
 
 func SendingToCleverUsers(session *model.UserSession, update tgbotapi.Update,
-	bot *tgbotapi.BotAPI, cleverUserIDSlice []int64) {
+	bot *tgbotapi.BotAPI, cleverUserIDSlice []int64, isMedia bool) {
 	for _, cleverUserID := range cleverUserIDSlice {
 		// кто отправил и дедлайн
 
@@ -221,7 +227,8 @@ func SendingToCleverUsers(session *model.UserSession, update tgbotapi.Update,
 			cleverUserID,
 			session.OriginMessageID,
 			session.ParsedDateTime,
-			sentMsg.MessageID)
+			sentMsg.MessageID,
+			false)
 
 		if err != nil {
 			log.Fatalf("can't addRequest to json file: %v", err)
@@ -237,8 +244,8 @@ func SendingToCleverUsers(session *model.UserSession, update tgbotapi.Update,
 		}
 
 		err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
-			cleverUserID, session.OriginMessageID, session.ParsedDateTime, sentDescriptionMsg.MessageID)
-		log.Print(cleverUserID, session.OriginMessageID, session.ParsedDateTime, sentDescriptionMsg.MessageID)
+			cleverUserID, session.OriginMessageID, session.ParsedDateTime, sentDescriptionMsg.MessageID, isMedia)
+		//log.Print(cleverUserID, session.OriginMessageID, session.ParsedDateTime, sentDescriptionMsg.MessageID)
 		if err != nil {
 			log.Fatalf("can't addRequest to json file: %v", err)
 		}

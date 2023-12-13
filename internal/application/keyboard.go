@@ -135,7 +135,7 @@ func SendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64, userStates map[int64]i
 }
 
 func SendRegisterKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
-	msg := tgbotapi.NewMessage(chatID, "Добро пожаловать! Нажмите, чтобы начать:")
+	msg := tgbotapi.NewMessage(chatID, "Нажмите, чтобы начать:")
 	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
 			tgbotapi.NewKeyboardButton("Начать"),

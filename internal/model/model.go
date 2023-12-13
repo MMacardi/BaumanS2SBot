@@ -19,9 +19,10 @@ type Category struct {
 
 type FileData struct {
 	ChatID           int64     `json:"chat_id"`
-	MessageID        int       `json:"message_id"`
+	OrigMessageID    int       `json:"orig_message_id"`
 	ExpiryDate       time.Time `json:"expiry_date"`
 	ForwardMessageID int       `json:"forward_message_id"`
+	IsMedia          bool      `json:"is_media"`
 }
 
 type UserSession struct {
@@ -31,4 +32,6 @@ type UserSession struct {
 	ParsedDateTime  time.Time
 	DateTimeText    string
 	OriginMessageID int
+	ChatID          int64
+	UserID          int64
 }

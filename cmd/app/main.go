@@ -2,7 +2,6 @@ package main
 
 import (
 	"BaumanS2SBot/internal/application"
-	"BaumanS2SBot/internal/application/states"
 	"BaumanS2SBot/internal/model"
 	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -14,6 +13,10 @@ import (
 )
 
 const dateTimeLayout = "15:04 02.01.2006"
+
+// 1.(идея цель проблема) технологии проблемы решение проблем архитектура
+// показ рабочего проекта монетизация
+// как привлекать умных людей
 
 func main() {
 
@@ -52,12 +55,13 @@ func main() {
 	go application.DeleteExpiredRequests(bot, loc, deleteTicker)
 
 	var userStates = make(map[int64]int)
-	session := &model.UserSession{}
+	var userSessions = make(map[int64]*model.UserSession)
 
-	debug := true
+	debug := false
 
 	updates := bot.GetUpdatesChan(u)
 	for update := range updates {
+
 		if update.CallbackQuery != nil {
 			application.ProcessCallback(update, bot)
 		}
@@ -68,14 +72,7 @@ func main() {
 		userID := update.Message.From.ID
 		chatID := update.Message.Chat.ID
 
-		log.Printf("%v", userStates[userID])
-
-		if application.IsNewUser(db, userID) && update.Message.Text == "/start" {
-			application.SendRegisterKeyboard(bot, update.Message.Chat.ID)
-			userStates[userID] = states.StateStart
-		}
-
-		application.Start(session, update, ctx, db, bot, userID, chatID, userStates[userID], userStates, dateTimeLayout, loc, debug)
+		application.Start(userSessions, update, ctx, db, bot, userID, chatID, userStates[userID], userStates, dateTimeLayout, loc, debug)
 
 	}
 }
