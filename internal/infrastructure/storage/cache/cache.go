@@ -22,7 +22,6 @@ func LoadRequests(filename string) (FileDataList, error) {
 	fileBytes, err := os.ReadFile(filename)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// Если файл не существует, возвращаем пустой список
 			log.Fatalf("No file finded: %v", err)
 			return data, nil
 		}
@@ -30,7 +29,6 @@ func LoadRequests(filename string) (FileDataList, error) {
 	}
 
 	if len(fileBytes) == 0 {
-		// Если файл пустой, возвращаем пустой список
 		log.Print("File is empty")
 		return data, nil
 	}
@@ -46,7 +44,6 @@ func SaveRequests(filename string, data FileDataList) error {
 	return os.WriteFile(filename, fileBytes, 0644)
 }
 
-// DeleteExpiredRequestsFromCache удаляет устаревшие запросы
 func DeleteExpiredRequestsFromCache(filename string, loc *time.Location) (error, map[int64][]int, map[int64][]int) {
 
 	data, err := LoadRequests(filename)
@@ -106,7 +103,6 @@ func DeleteRequest(filename string, messageID int) (map[int64][]int, map[int64]m
 	return deleteMap, editMap, nil
 }
 
-// AddRequest добавляет новый запрос в файл
 func AddRequest(filename string, chatID int64, messageID int, expiryDate time.Time, forwardMessageID int, isMedia bool) error {
 	data, err := LoadRequests(filename)
 	if err != nil {

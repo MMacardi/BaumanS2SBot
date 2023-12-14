@@ -111,6 +111,7 @@ func ConfirmRequest(session *model.UserSession, update tgbotapi.Update,
 		userStates[userID] = states.StateConfirmationRequestForHelp
 		return
 	}
+	session.IsMedia = media.Exist(update.Message)
 	originMessageID := update.Message.MessageID
 	session.OriginMessageID = originMessageID
 	originMessage := tgbotapi.NewCopyMessage(chatID,
@@ -144,16 +145,12 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 			log.Fatalf("Can't send cograts forming request: %v", err)
 		}
 
-		isMedia := media.Exist(origMsg)
-
 		err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
 			userID,
 			0,
 			session.ParsedDateTime,
 			origMsg.MessageID,
-			isMedia)
-
-		log.Print(origMsg.MessageID, userID, isMedia)
+			session.IsMedia)
 
 		if err != nil {
 			log.Fatalf("can't addRequest to json file: %v", err)
@@ -171,7 +168,7 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 			cleverUserIDSlice = append(cleverUserIDSlice, adminID)
 		}
 
-		SendingToCleverUsers(session, update, bot, cleverUserIDSlice, isMedia)
+		SendingToCleverUsers(session, update, bot, cleverUserIDSlice, session.IsMedia)
 
 		if debug == false {
 

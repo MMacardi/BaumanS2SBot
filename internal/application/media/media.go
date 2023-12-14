@@ -5,9 +5,8 @@ import (
 	"log"
 )
 
-func Exist(originMessage tgbotapi.Message) bool {
-	if originMessage.Document != nil || (originMessage.Photo != nil && len(originMessage.Photo) > 0) ||
-		originMessage.Audio != nil || originMessage.Video != nil {
+func Exist(originMessage *tgbotapi.Message) bool {
+	if originMessage.Document != nil || (originMessage.Photo != nil && len(originMessage.Photo) > 0) || originMessage.Audio != nil || originMessage.Video != nil {
 		return true
 	}
 	return false
@@ -23,16 +22,17 @@ func IfExist(isMedia bool, chatID int64, messageID int, bot *tgbotapi.BotAPI, ms
 		if _, err := bot.Send(edit); err != nil {
 			log.Printf("Error editing msg with document: %v", err)
 		}
-	} else {
-		edit := tgbotapi.NewEditMessageText(chatID,
-			messageID,
-			msgText)
+		return
+	}
 
-		edit.ReplyMarkup = nil
+	edit := tgbotapi.NewEditMessageText(chatID,
+		messageID,
+		msgText)
 
-		if _, err := bot.Send(edit); err != nil {
-			log.Printf("Error editing text msg: %v", err)
-		}
+	edit.ReplyMarkup = nil
+
+	if _, err := bot.Send(edit); err != nil {
+		log.Printf("Error editing text msg: %v", err)
 	}
 
 }

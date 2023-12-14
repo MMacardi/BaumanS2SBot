@@ -175,8 +175,7 @@ func DeleteCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, originMessageI
 			if forwardMessageID == originMessage.MessageID {
 				media.IfExist(isMedia, chatID, forwardMessageID, bot, "Вам помогли с этим запросом 🎉")
 			} else {
-
-				media.IfExist(isMedia, chatID, forwardMessageID, bot, "Ваше сообщение было удалено админом")
+				media.IfExist(isMedia, chatID, forwardMessageID, bot, "Ваш запрос был удален администратором")
 			}
 		}
 	}
