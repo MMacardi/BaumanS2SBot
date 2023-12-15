@@ -2,7 +2,7 @@
 
 Telegram Bot, where students can help other students by posting requests for help
 
-<img src="https://github.com/MMacardi/BaumanS2SBot/assets/61706774/99b67728-f346-413b-9b32-2dc6ecc6fb49.png" width="300" height="300" />
+<img alt="Bot Logo" src="https://github.com/MMacardi/BaumanS2SBot/assets/61706774/99b67728-f346-413b-9b32-2dc6ecc6fb49.png" width="300" height="300" />
 
 To Start Docker Container use 
 

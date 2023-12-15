@@ -25,10 +25,12 @@ func Page(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 
 		userStates[userID] = states.StateChoosingCategoryForHelp
 	} else {
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Нажмите на одну из кнопок клавиатуры:")
+		if update.Message.IsCommand() == false {
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Нажмите на одну из кнопок клавиатуры:")
 
-		if _, err := bot.Send(msg); err != nil {
-			log.Printf("Error sending not a command on home page message %v", err)
+			if _, err := bot.Send(msg); err != nil {
+				log.Printf("Error sending not a command on home page message %v", err)
+			}
 		}
 	}
 }

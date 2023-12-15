@@ -166,8 +166,8 @@ func SendConfirmationKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
 	msg := tgbotapi.NewMessage(chatID, "Вы уверены в правильности запроса?")
 	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton(commands.ConfirmYes),
-			tgbotapi.NewKeyboardButton(commands.ConfirmNo),
+			tgbotapi.NewKeyboardButton(commands.Yes),
+			tgbotapi.NewKeyboardButton(commands.No),
 			tgbotapi.NewKeyboardButton(commands.BackToHome),
 		),
 	)

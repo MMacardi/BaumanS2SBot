@@ -127,7 +127,7 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 	bot *tgbotapi.BotAPI, userID int64, userStates map[int64]int, debug bool) {
 	if update.Message.Text == commands.BackToHome {
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
-	} else if update.Message.Text == commands.ConfirmYes {
+	} else if update.Message.Text == commands.Yes {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
 			fmt.Sprintf("Вы успешно сформировали запрос на помощь по теме: <b>%v</b>\nСрок до: <b>%v</b>\nОписание: \n", session.CategoryChosen, session.DateTimeText))
 		msg.ParseMode = "HTML"
@@ -187,7 +187,7 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
 		return
-	} else if update.Message.Text == commands.ConfirmNo {
+	} else if update.Message.Text == commands.No {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите описание проблемы:")
 		if _, err := bot.Send(msg); err != nil {
 			log.Fatalf("Error with sending Введите описание msg: %v", err)
@@ -210,7 +210,7 @@ func SendingToCleverUsers(session *model.UserSession, update tgbotapi.Update,
 
 		msg := tgbotapi.NewMessage(cleverUserID, fmt.Sprintf("#ЗапросНаПомощь\nТема: #<b>%v</b> \n"+
 			"Отправил пользователь с id: @%v "+
-			"\nАктуально до %v\nОписание:",
+			"\nАктуально до %v:\nОписание:",
 			session.CategoryChosen,
 			update.Message.From.UserName,
 			session.DateTimeText))
