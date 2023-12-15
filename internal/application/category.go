@@ -1,6 +1,7 @@
 package application
 
 import (
+	"BaumanS2SBot/internal/application/commands"
 	"BaumanS2SBot/internal/application/states"
 	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -21,7 +22,7 @@ func Remove(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 
 		SendUserRemoveCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID,
 			GetCurrentUserCategoriesKeyboard(ctx, db, update.Message.Chat.ID))
-	} else if update.Message.Text == "Вернуться на главный экран" {
+	} else if update.Message.Text == commands.BackToHome {
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
 	}
 }
@@ -41,7 +42,7 @@ func Add(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 			}
 		}
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, m+
-			"Вы зарегистрированы в предметах: "+
+			"Вы зарегистрированы в предметах:: "+
 			strings.Join(GetCategoriesNameByCategoryID(ctx, db,
 				GetUserCurrentCategoriesSlice(ctx, db, update.Message.Chat.ID)), ","))
 		msg.ReplyMarkup = GetCategorySelectKeyboard(ctx, db, chatID)
@@ -50,9 +51,9 @@ func Add(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 			return
 		}
 
-	} else if update.Message.Text == "Вернуться на главный экран" {
+	} else if update.Message.Text == commands.BackToHome {
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
-	} else if update.Message.Text == "Удалить предметы" {
+	} else if update.Message.Text == commands.RemoveCategories {
 		SendUserRemoveCategoriesKeyboard(ctx, bot, db, update.Message.Chat.ID,
 			GetCurrentUserCategoriesKeyboard(ctx, db, update.Message.Chat.ID))
 

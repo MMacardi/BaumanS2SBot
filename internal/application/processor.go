@@ -100,9 +100,12 @@ func Start(userSessions map[int64]*model.UserSession, update tgbotapi.Update, ct
 
 	session := userSessions[userID]
 
+	AddCommandsMenu(bot)
+
 	if update.Message.IsCommand() {
 		switch update.Message.Command() {
 		case "start":
+			userStates[userID] = states.StateHome
 			if IsNewUser(db, userID) {
 				SendRegisterKeyboard(bot, update.Message.Chat.ID)
 				userStates[userID] = states.StateStart

@@ -1,6 +1,7 @@
 package application
 
 import (
+	"BaumanS2SBot/internal/application/commands"
 	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jmoiron/sqlx"
@@ -8,6 +9,18 @@ import (
 	"sort"
 	"strings"
 )
+
+func AddCommandsMenu(bot *tgbotapi.BotAPI) {
+	commandsKeyboard := []tgbotapi.BotCommand{
+		{Command: "start", Description: "Зарегистрироваться, либо перейти на главный экран"},
+		{Command: "help", Description: "Узнать о работе бота"},
+	}
+
+	_, err := bot.Request(tgbotapi.NewSetMyCommands(commandsKeyboard...))
+	if err != nil {
+		log.Panic(err)
+	}
+}
 
 func AddKeyboardButton(keyboard tgbotapi.ReplyKeyboardMarkup, newButton string) tgbotapi.ReplyKeyboardMarkup {
 
@@ -31,24 +44,7 @@ func AddKeyboardButton(keyboard tgbotapi.ReplyKeyboardMarkup, newButton string) 
 	return keyboard
 }
 
-func GetHelpCategoryKeyboard(ctx context.Context, db *sqlx.DB) tgbotapi.ReplyKeyboardMarkup {
-	categories, err := GetCategoriesMap(ctx, db)
-
-	if err != nil {
-		log.Fatalf("Error getting categories %v", err)
-	}
-
-	CategoriesKeyboard := tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран")))
-	for _, categoryName := range categories {
-		CategoriesKeyboard = AddKeyboardButton(CategoriesKeyboard, categoryName)
-	}
-
-	return CategoriesKeyboard
-
-}
-
-func GetCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) tgbotapi.ReplyKeyboardMarkup {
+func getSortedCategoriesSlice(ctx context.Context, db *sqlx.DB) []string {
 	categories, err := GetCategoriesMap(ctx, db)
 	if err != nil {
 		log.Fatalf("Error getting categories %v", err)
@@ -60,8 +56,28 @@ func GetCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) t
 	}
 	sort.Strings(categoryNames)
 
+	return categoryNames
+}
+
+func GetHelpCategoryKeyboard(ctx context.Context, db *sqlx.DB) tgbotapi.ReplyKeyboardMarkup {
+	categories := getSortedCategoriesSlice(ctx, db)
+
 	categoriesKeyboard := tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран"), tgbotapi.NewKeyboardButton("Удалить предметы")))
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(commands.BackToHome)))
+
+	for _, categoryName := range categories {
+		categoriesKeyboard = AddKeyboardButton(categoriesKeyboard, categoryName)
+	}
+
+	return categoriesKeyboard
+
+}
+
+func GetCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) tgbotapi.ReplyKeyboardMarkup {
+	categoryNames := getSortedCategoriesSlice(ctx, db)
+
+	categoriesKeyboard := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(commands.BackToHome), tgbotapi.NewKeyboardButton(commands.RemoveCategories)))
 	tick := ""
 	userCategories := GetCurrentUserCategories(ctx, db, chatID)
 	for _, categoryName := range categoryNames {
@@ -79,7 +95,7 @@ func GetCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) t
 
 func SendCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64, update tgbotapi.Update, bot *tgbotapi.BotAPI) {
 	categoriesString := GetCurrentUserCategoriesString(ctx, db, update.Message.Chat.ID)
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы зарегистрированы в предметах"+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы зарегистрированы в предметах:"+
 		" "+categoriesString)
 
 	if categoriesString == "" {
@@ -95,7 +111,7 @@ func SendCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64, 
 func GetCurrentUserCategoriesKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) tgbotapi.ReplyKeyboardMarkup {
 	currentCategories := GetCategoriesNameByCategoryID(ctx, db, GetUserCurrentCategoriesSlice(ctx, db, chatID))
 	selectCategoriesKeyboard := tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton("Вернуться на главный экран")))
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(commands.BackToHome)))
 	for _, currentCategoryName := range currentCategories {
 		selectCategoriesKeyboard = AddKeyboardButton(selectCategoriesKeyboard, currentCategoryName)
 	}
@@ -107,7 +123,7 @@ func SendUserRemoveCategoriesKeyboard(ctx context.Context, bot *tgbotapi.BotAPI,
 	currentCategoriesString := strings.Join(GetCategoriesNameByCategoryID(ctx, db,
 		GetUserCurrentCategoriesSlice(ctx, db, chatID)), ",")
 
-	msg := tgbotapi.NewMessage(chatID, "Вы зарегистрированы в предметах"+" "+currentCategoriesString)
+	msg := tgbotapi.NewMessage(chatID, "Вы зарегистрированы в предметах:"+" "+currentCategoriesString)
 
 	if currentCategoriesString == "" {
 		msg = tgbotapi.NewMessage(chatID, "Вам нечего удалять :(")
@@ -123,8 +139,8 @@ func SendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64, userStates map[int64]i
 	msg := tgbotapi.NewMessage(chatID, "Что вы хотите сделать?")
 	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("Нужна помощь"),
-			tgbotapi.NewKeyboardButton("Хочу помогать"),
+			tgbotapi.NewKeyboardButton(commands.NeedHelp),
+			tgbotapi.NewKeyboardButton(commands.WannaHelp),
 			// tgbotapi.NewKeyboardButton("Удалить или отредактировать запросы на помощь"),
 		),
 	)
@@ -150,9 +166,9 @@ func SendConfirmationKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
 	msg := tgbotapi.NewMessage(chatID, "Вы уверены в правильности запроса?")
 	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton("Да"),
-			tgbotapi.NewKeyboardButton("Нет"),
-			tgbotapi.NewKeyboardButton("Вернуться на главный экран"),
+			tgbotapi.NewKeyboardButton(commands.ConfirmYes),
+			tgbotapi.NewKeyboardButton(commands.ConfirmNo),
+			tgbotapi.NewKeyboardButton(commands.BackToHome),
 		),
 	)
 	if _, err := bot.Send(msg); err != nil {
