@@ -1,6 +1,7 @@
 package application
 
 import (
+	"BaumanS2SBot/internal/application/commands"
 	"BaumanS2SBot/internal/application/states"
 	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -21,7 +22,7 @@ func Remove(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 
 		SendUserRemoveCategoriesMsgKeyboard(ctx, bot, db, update.Message.Chat.ID,
 			GetCurrentUserCategoriesKeyboard(ctx, db, update.Message.Chat.ID))
-	} else if update.Message.Text == BackToHomeCmd {
+	} else if update.Message.Text == commands.BackToHome {
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID)
 	}
 }
@@ -50,9 +51,9 @@ func Add(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 			return
 		}
 
-	} else if update.Message.Text == BackToHomeCmd {
+	} else if update.Message.Text == commands.BackToHome {
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID)
-	} else if update.Message.Text == RemoveCategoriesCmd {
+	} else if update.Message.Text == commands.RemoveCategories {
 		SendUserRemoveCategoriesMsgKeyboard(ctx, bot, db, update.Message.Chat.ID,
 			GetCurrentUserCategoriesKeyboard(ctx, db, update.Message.Chat.ID))
 

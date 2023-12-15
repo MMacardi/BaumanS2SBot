@@ -1,6 +1,7 @@
 package application
 
 import (
+	"BaumanS2SBot/internal/application/commands"
 	"BaumanS2SBot/internal/application/media"
 	"BaumanS2SBot/internal/application/states"
 	"BaumanS2SBot/internal/infrastructure/storage/cache"
@@ -179,4 +180,18 @@ func DeleteCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, originMessageI
 		}
 	}
 
+}
+
+func CommandHandler(update tgbotapi.Update, bot *tgbotapi.BotAPI, db *sqlx.DB, userID int64, chatID int64, userStates map[int64]int) {
+	switch update.Message.Command() {
+	case "start":
+		if IsNewUser(db, userID) {
+			SendRegisterKeyboard(bot, update.Message.Chat.ID)
+			userStates[userID] = states.StateStart
+		} else {
+			SendHomeKeyboard(bot, chatID, userStates, userID)
+		}
+	case "help":
+		commands.SendHelpMessage(bot, chatID)
+	}
 }

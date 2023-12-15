@@ -1,6 +1,7 @@
 package application
 
 import (
+	"BaumanS2SBot/internal/application/commands"
 	"BaumanS2SBot/internal/model"
 	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -32,7 +33,7 @@ func User(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 		if _, err := bot.Send(msg); err != nil {
 			log.Printf("Error sending greeting msg %v", err)
 		}
-		SendHelpMessage(bot, update.Message.Chat.ID)
+		commands.SendHelpMessage(bot, update.Message.Chat.ID)
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID)
 
 	}
