@@ -65,6 +65,7 @@ func main() {
 		if update.CallbackQuery != nil {
 			application.ProcessCallback(update, bot)
 		}
+
 		if update.Message == nil {
 			continue
 		}
@@ -72,7 +73,10 @@ func main() {
 		userID := update.Message.From.ID
 		chatID := update.Message.Chat.ID
 
-		application.Start(userSessions, update, ctx, db, bot, userID, chatID, userStates[userID], userStates, dateTimeLayout, loc, debug)
+		if update.Message.IsCommand() {
+			application.CommandHandler(update, bot, db, userID, chatID, userStates)
+		}
 
+		application.Start(userSessions, update, ctx, db, bot, userID, chatID, userStates[userID], userStates, dateTimeLayout, loc, debug)
 	}
 }

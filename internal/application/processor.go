@@ -1,7 +1,6 @@
 package application
 
 import (
-	"BaumanS2SBot/internal/application/commands"
 	"BaumanS2SBot/internal/application/media"
 	"BaumanS2SBot/internal/application/states"
 	"BaumanS2SBot/internal/infrastructure/storage/cache"
@@ -101,20 +100,6 @@ func Start(userSessions map[int64]*model.UserSession, update tgbotapi.Update, ct
 	session := userSessions[userID]
 
 	AddCommandsMenu(bot)
-
-	if update.Message.IsCommand() {
-		switch update.Message.Command() {
-		case "start":
-			if IsNewUser(db, userID) {
-				SendRegisterKeyboard(bot, update.Message.Chat.ID)
-				userStates[userID] = states.StateStart
-			} else {
-				SendHomeKeyboard(bot, chatID, userStates, userID, states.StateHome)
-			}
-		case "help":
-			commands.SendHelpMessage(bot, chatID)
-		}
-	}
 
 	switch currentState {
 	case states.StateHome:

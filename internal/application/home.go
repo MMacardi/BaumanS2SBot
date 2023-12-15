@@ -1,7 +1,6 @@
 package application
 
 import (
-	"BaumanS2SBot/internal/application/commands"
 	"BaumanS2SBot/internal/application/states"
 	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -11,11 +10,11 @@ import (
 
 func Page(update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 	bot *tgbotapi.BotAPI, userID int64, userStates map[int64]int, chatID int64) {
-	if update.Message.Text == commands.WannaHelp {
+	if update.Message.Text == WannaHelpCmd {
 		SendCategorySelectKeyboard(ctx, db, chatID, update, bot)
 
 		userStates[userID] = states.StateAddCategory
-	} else if update.Message.Text == commands.NeedHelp {
+	} else if update.Message.Text == NeedHelpCmd {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выберите предмет:")
 		msg.ReplyMarkup = GetHelpCategoryKeyboard(ctx, db)
 

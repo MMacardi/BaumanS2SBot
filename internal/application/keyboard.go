@@ -1,7 +1,7 @@
 package application
 
 import (
-	"BaumanS2SBot/internal/application/commands"
+	"BaumanS2SBot/internal/application/states"
 	"context"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jmoiron/sqlx"
@@ -63,7 +63,7 @@ func GetHelpCategoryKeyboard(ctx context.Context, db *sqlx.DB) tgbotapi.ReplyKey
 	categories := getSortedCategoriesSlice(ctx, db)
 
 	categoriesKeyboard := tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(commands.BackToHome)))
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(BackToHomeCmd)))
 
 	for _, categoryName := range categories {
 		categoriesKeyboard = AddKeyboardButton(categoriesKeyboard, categoryName)
@@ -77,7 +77,7 @@ func GetCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) t
 	categoryNames := getSortedCategoriesSlice(ctx, db)
 
 	categoriesKeyboard := tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(commands.BackToHome), tgbotapi.NewKeyboardButton(commands.RemoveCategories)))
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(BackToHomeCmd), tgbotapi.NewKeyboardButton(RemoveCategoriesCmd)))
 	tick := ""
 	userCategories := GetCurrentUserCategories(ctx, db, chatID)
 	for _, categoryName := range categoryNames {
@@ -111,7 +111,7 @@ func SendCategorySelectKeyboard(ctx context.Context, db *sqlx.DB, chatID int64, 
 func GetCurrentUserCategoriesKeyboard(ctx context.Context, db *sqlx.DB, chatID int64) tgbotapi.ReplyKeyboardMarkup {
 	currentCategories := GetCategoriesNameByCategoryID(ctx, db, GetUserCurrentCategoriesSlice(ctx, db, chatID))
 	selectCategoriesKeyboard := tgbotapi.NewReplyKeyboard(
-		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(commands.BackToHome)))
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(BackToHomeCmd)))
 	for _, currentCategoryName := range currentCategories {
 		selectCategoriesKeyboard = AddKeyboardButton(selectCategoriesKeyboard, currentCategoryName)
 	}
@@ -119,7 +119,7 @@ func GetCurrentUserCategoriesKeyboard(ctx context.Context, db *sqlx.DB, chatID i
 	return selectCategoriesKeyboard
 }
 
-func SendUserRemoveCategoriesKeyboard(ctx context.Context, bot *tgbotapi.BotAPI, db *sqlx.DB, chatID int64, currentCategoriesKeyboard tgbotapi.ReplyKeyboardMarkup) {
+func SendUserRemoveCategoriesMsgKeyboard(ctx context.Context, bot *tgbotapi.BotAPI, db *sqlx.DB, chatID int64, currentCategoriesKeyboard tgbotapi.ReplyKeyboardMarkup) {
 	currentCategoriesString := strings.Join(GetCategoriesNameByCategoryID(ctx, db,
 		GetUserCurrentCategoriesSlice(ctx, db, chatID)), ",")
 
@@ -135,19 +135,19 @@ func SendUserRemoveCategoriesKeyboard(ctx context.Context, bot *tgbotapi.BotAPI,
 	}
 }
 
-func SendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64, userStates map[int64]int, userID int64, StateHome int) {
+func SendHomeKeyboard(bot *tgbotapi.BotAPI, chatID int64, userStates map[int64]int, userID int64) {
 	msg := tgbotapi.NewMessage(chatID, "Что вы хотите сделать?")
 	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton(commands.NeedHelp),
-			tgbotapi.NewKeyboardButton(commands.WannaHelp),
+			tgbotapi.NewKeyboardButton(NeedHelpCmd),
+			tgbotapi.NewKeyboardButton(WannaHelpCmd),
 			// tgbotapi.NewKeyboardButton("Удалить или отредактировать запросы на помощь"),
 		),
 	)
 	if _, err := bot.Send(msg); err != nil {
 		log.Printf("Error sending send home message: %v", err)
 	}
-	userStates[userID] = StateHome
+	userStates[userID] = states.StateHome
 }
 
 func SendRegisterKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
@@ -166,9 +166,9 @@ func SendConfirmationKeyboard(bot *tgbotapi.BotAPI, chatID int64) {
 	msg := tgbotapi.NewMessage(chatID, "Вы уверены в правильности запроса?")
 	msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(
-			tgbotapi.NewKeyboardButton(commands.Yes),
-			tgbotapi.NewKeyboardButton(commands.No),
-			tgbotapi.NewKeyboardButton(commands.BackToHome),
+			tgbotapi.NewKeyboardButton(YesCmd),
+			tgbotapi.NewKeyboardButton(NoCmd),
+			tgbotapi.NewKeyboardButton(BackToHomeCmd),
 		),
 	)
 	if _, err := bot.Send(msg); err != nil {

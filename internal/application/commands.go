@@ -1,17 +1,19 @@
-package commands
+package application
 
 import (
+	"BaumanS2SBot/internal/application/states"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/jmoiron/sqlx"
 	"log"
 )
 
 const (
-	NeedHelp         = "Нужна помощь 🆘"
-	WannaHelp        = "Хочу помогать 🤝"
-	BackToHome       = "Вернуться на главный экран 🏠"
-	RemoveCategories = "Удалить предметы 🗑️"
-	Yes              = "Да 🤩"
-	No               = "Нет 🤔"
+	NeedHelpCmd         = "Нужна помощь 🆘"
+	WannaHelpCmd        = "Хочу помогать 🤝"
+	BackToHomeCmd       = "Вернуться на главный экран 🏠"
+	RemoveCategoriesCmd = "Удалить предметы 🗑️"
+	YesCmd              = "Да 🤩"
+	NoCmd               = "Нет 🤔"
 
 	Help = `
 Для того чтобы помогать другим пользователям, нажмите на главном экране "Хочу помогать 🤝" и выберите предмет
@@ -29,5 +31,19 @@ func SendHelpMessage(bot *tgbotapi.BotAPI, chatID int64) {
 	msg.ParseMode = "HTML"
 	if _, err := bot.Send(msg); err != nil {
 		log.Printf("Error sending help msg %v", err)
+	}
+}
+
+func CommandHandler(update tgbotapi.Update, bot *tgbotapi.BotAPI, db *sqlx.DB, userID int64, chatID int64, userStates map[int64]int) {
+	switch update.Message.Command() {
+	case "start":
+		if IsNewUser(db, userID) {
+			SendRegisterKeyboard(bot, update.Message.Chat.ID)
+			userStates[userID] = states.StateStart
+		} else {
+			SendHomeKeyboard(bot, chatID, userStates, userID)
+		}
+	case "help":
+		SendHelpMessage(bot, chatID)
 	}
 }

@@ -1,7 +1,6 @@
 package application
 
 import (
-	"BaumanS2SBot/internal/application/commands"
 	"BaumanS2SBot/internal/application/media"
 	"BaumanS2SBot/internal/application/states"
 	"BaumanS2SBot/internal/infrastructure/storage/cache"
@@ -30,8 +29,8 @@ func GetCleverUsersSlice(ctx context.Context, db *sqlx.DB, categoryID int) ([]in
 
 func ChooseCategory(session *model.UserSession, update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 	bot *tgbotapi.BotAPI, userID int64, userStates map[int64]int) {
-	if update.Message.Text == commands.BackToHome {
-		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
+	if update.Message.Text == BackToHomeCmd {
+		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID)
 	} else if categoryID, found := GetKeyByValue(GetCategories(ctx, db), update.Message.Text); found {
 		categoryChosen := update.Message.Text
 		session.CategoryChosen = categoryChosen
@@ -40,7 +39,7 @@ func ChooseCategory(session *model.UserSession, update tgbotapi.Update, ctx cont
 			"\nНапишите сроки вашего запроса на помощь в формате Часы:Минуты Дата.Месяц.Год (Пример: 19:15 01.12.2023)")
 		msg.ParseMode = "HTML"
 		msg.ReplyMarkup = tgbotapi.NewReplyKeyboard(
-			tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(commands.BackToHome)))
+			tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(BackToHomeCmd)))
 		if _, err := bot.Send(msg); err != nil {
 			log.Printf("Error with sending chosen category msg %v", err)
 		}
@@ -62,8 +61,8 @@ func ChooseCategory(session *model.UserSession, update tgbotapi.Update, ctx cont
 
 func FormingRequest(session *model.UserSession, update tgbotapi.Update,
 	bot *tgbotapi.BotAPI, userID int64, userStates map[int64]int, dateTimeLayout string, loc *time.Location) {
-	if update.Message.Text == commands.BackToHome {
-		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
+	if update.Message.Text == BackToHomeCmd {
+		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID)
 		return
 	} else {
 		// date
@@ -99,8 +98,8 @@ func FormingRequest(session *model.UserSession, update tgbotapi.Update,
 
 func ConfirmRequest(session *model.UserSession, update tgbotapi.Update,
 	bot *tgbotapi.BotAPI, userID int64, chatID int64, userStates map[int64]int) {
-	if update.Message.Text == commands.BackToHome {
-		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
+	if update.Message.Text == BackToHomeCmd {
+		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID)
 		return
 	}
 	if update.Message.Sticker != nil {
@@ -125,9 +124,9 @@ func ConfirmRequest(session *model.UserSession, update tgbotapi.Update,
 
 func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB, update tgbotapi.Update,
 	bot *tgbotapi.BotAPI, userID int64, userStates map[int64]int, debug bool) {
-	if update.Message.Text == commands.BackToHome {
-		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
-	} else if update.Message.Text == commands.Yes {
+	if update.Message.Text == BackToHomeCmd {
+		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID)
+	} else if update.Message.Text == YesCmd {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID,
 			fmt.Sprintf("Вы успешно сформировали запрос на помощь по теме: <b>%v</b>\nСрок до: <b>%v</b>\nОписание: \n", session.CategoryChosen, session.DateTimeText))
 		msg.ParseMode = "HTML"
@@ -185,9 +184,9 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 			}
 		}
 
-		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID, states.StateHome)
+		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID)
 		return
-	} else if update.Message.Text == commands.No {
+	} else if update.Message.Text == NoCmd {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите описание проблемы:")
 		if _, err := bot.Send(msg); err != nil {
 			log.Fatalf("Error with sending Введите описание msg: %v", err)
