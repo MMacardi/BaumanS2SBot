@@ -168,21 +168,41 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 		if debug == false {
 			cleverUserIDSlice = append(cleverUserIDSlice, adminID)
 		}
-
-		SendingToCleverUsers(session, update, bot, cleverUserIDSlice, session.IsMedia)
-
+		for _, cleverUserID := range cleverUserIDSlice {
+			if cleverUserID != userID && debug == false {
+				SendingToCleverUsers(session, update, bot, session.IsMedia, cleverUserID)
+			} else if debug == true {
+				SendingToCleverUsers(session, update, bot, session.IsMedia, cleverUserID)
+			}
+		}
 		if debug == false {
 
 			session.OriginMessage.ChatID = adminID
 
-			if _, err := bot.Send(tgbotapi.NewMessage(adminID, "Админ лови, но учти - если ты создал запрос, то на верхнюю кнопочку,"+
+			if _, err = bot.Send(tgbotapi.NewMessage(adminID, "Админ лови, но учти - если ты создал запрос, то на верхнюю кнопочку,"+
 				"после нажатия, ты ничего не удалишь, потому что ты удалил уже на нижнюю :0")); err != nil {
 				log.Printf("Error Sending msg to admin %v", err)
 			}
 
-			if _, err := bot.Send(session.OriginMessage); err != nil {
+			msg = tgbotapi.NewMessage(adminID, fmt.Sprintf("#ЗапросНаПомощь\nТема: #<b>%v</b> \n"+
+				"Отправил пользователь с id: @%v "+
+				"\nАктуально до: %v\nОписание:",
+				session.CategoryChosen,
+				update.Message.From.UserName,
+				session.DateTimeText))
+			msg.ParseMode = "HTML"
+
+			_, err = bot.Send(msg)
+			if err != nil {
+				log.Fatalf("Can't forward message to clever guys with id: %v %v", adminID, err)
+			}
+
+			if _, err = bot.Send(session.OriginMessage); err != nil {
 				log.Fatalf("Can't send cograts forming request: %v", err)
 			}
+
+			_, err = bot.Send(tgbotapi.NewMessage(adminID, "Это конец запроса, админ"))
+
 		}
 
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID)
@@ -204,49 +224,47 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 }
 
 func SendingToCleverUsers(session *model.UserSession, update tgbotapi.Update,
-	bot *tgbotapi.BotAPI, cleverUserIDSlice []int64, isMedia bool) {
-	for _, cleverUserID := range cleverUserIDSlice {
-		// кто отправил и дедлайн
+	bot *tgbotapi.BotAPI, isMedia bool, cleverUserID int64) {
+	// кто отправил и дедлайн
 
-		msg := tgbotapi.NewMessage(cleverUserID, fmt.Sprintf("#ЗапросНаПомощь\nТема: #<b>%v</b> \n"+
-			"Отправил пользователь с id: @%v "+
-			"\nАктуально до %v:\nОписание:",
-			session.CategoryChosen,
-			update.Message.From.UserName,
-			session.DateTimeText))
-		msg.ParseMode = "HTML"
+	msg := tgbotapi.NewMessage(cleverUserID, fmt.Sprintf("#ЗапросНаПомощь\nТема: #<b>%v</b> \n"+
+		"Отправил пользователь с id: @%v "+
+		"\nАктуально до: %v\nОписание:",
+		session.CategoryChosen,
+		update.Message.From.UserName,
+		session.DateTimeText))
+	msg.ParseMode = "HTML"
 
-		sentMsg, err := bot.Send(msg)
-		if err != nil {
-			log.Fatalf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
-		}
+	sentMsg, err := bot.Send(msg)
+	if err != nil {
+		log.Fatalf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
+	}
 
-		err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
-			cleverUserID,
-			session.OriginMessageID,
-			session.ParsedDateTime,
-			sentMsg.MessageID,
-			false)
+	err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
+		cleverUserID,
+		session.OriginMessageID,
+		session.ParsedDateTime,
+		sentMsg.MessageID,
+		false)
 
-		if err != nil {
-			log.Fatalf("can't addRequest to json file: %v", err)
-		}
+	if err != nil {
+		log.Fatalf("can't addRequest to json file: %v", err)
+	}
 
-		// описание задачи
-		forwardMsg := tgbotapi.NewCopyMessage(cleverUserID,
-			update.Message.Chat.ID, session.OriginMessageID)
+	// описание задачи
+	forwardMsg := tgbotapi.NewCopyMessage(cleverUserID,
+		update.Message.Chat.ID, session.OriginMessageID)
 
-		sentDescriptionMsg, err := bot.Send(forwardMsg)
-		if err != nil {
-			log.Fatalf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
-		}
+	sentDescriptionMsg, err := bot.Send(forwardMsg)
+	if err != nil {
+		log.Fatalf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
+	}
 
-		err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
-			cleverUserID, session.OriginMessageID, session.ParsedDateTime, sentDescriptionMsg.MessageID, isMedia)
-		//log.Print(cleverUserID, session.OriginMessageID, session.ParsedDateTime, sentDescriptionMsg.MessageID)
-		if err != nil {
-			log.Fatalf("can't addRequest to json file: %v", err)
-		}
+	err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
+		cleverUserID, session.OriginMessageID, session.ParsedDateTime, sentDescriptionMsg.MessageID, isMedia)
+	//log.Print(cleverUserID, session.OriginMessageID, session.ParsedDateTime, sentDescriptionMsg.MessageID)
+	if err != nil {
+		log.Fatalf("can't addRequest to json file: %v", err)
 	}
 
 }

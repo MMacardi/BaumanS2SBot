@@ -181,7 +181,6 @@ func DeleteCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, originMessageI
 	}
 
 }
-
 func CommandHandler(update tgbotapi.Update, bot *tgbotapi.BotAPI, db *sqlx.DB, userID int64, chatID int64, userStates map[int64]int) {
 	switch update.Message.Command() {
 	case "start":

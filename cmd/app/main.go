@@ -57,6 +57,7 @@ func main() {
 	var userStates = make(map[int64]int)
 	var userSessions = make(map[int64]*model.UserSession)
 
+	// debug for admin features and no forwarding from user to themselves
 	debug := false
 
 	updates := bot.GetUpdatesChan(u)
