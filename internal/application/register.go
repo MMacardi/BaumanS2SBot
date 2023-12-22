@@ -156,7 +156,7 @@ func IsCategoryAdded(ctx context.Context, db *sqlx.DB, chatID int64, input strin
 func GetCategories(ctx context.Context, db *sqlx.DB) map[int]string {
 	categories, err := GetCategoriesMap(ctx, db)
 	if err != nil {
-		log.Fatalf("can't take categories map %v", err)
+		log.Printf("can't take categories map %v", err)
 	}
 	return categories
 }

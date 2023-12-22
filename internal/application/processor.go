@@ -46,7 +46,7 @@ func MaintainDBConnection(dataSourceName string, db *sqlx.DB, ticker *time.Ticke
 				}
 				db, err = InitDB(dataSourceName)
 				if err != nil {
-					log.Fatalf("Error re-establishing connection to database: %v", err)
+					log.Printf("Error re-establishing connection to database: %v", err)
 				}
 			}
 		}
@@ -92,7 +92,7 @@ func DeleteExpiredRequests(bot *tgbotapi.BotAPI, loc *time.Location, ticker *tim
 
 func Start(userSessions map[int64]*model.UserSession, update tgbotapi.Update, ctx context.Context, db *sqlx.DB,
 	bot *tgbotapi.BotAPI, userID int64, chatID int64, currentState int, userStates map[int64]int, dateTimeLayout string,
-	loc *time.Location, debug bool) {
+	loc *time.Location, debug bool, fwdToSelf bool) {
 
 	if _, ok := userSessions[userID]; !ok {
 		userSessions[userID] = &model.UserSession{}
@@ -118,7 +118,7 @@ func Start(userSessions map[int64]*model.UserSession, update tgbotapi.Update, ct
 	case states.StateConfirmationRequestForHelp:
 		ConfirmRequest(session, update, bot, userID, chatID, userStates)
 	case states.StateSendingRequestForHelp:
-		SendingRequest(session, ctx, db, update, bot, userID, userStates, debug)
+		SendingRequest(session, ctx, db, update, bot, userID, userStates, debug, fwdToSelf)
 	case states.StateUserRequestsForHelp:
 		// TODO
 	}
@@ -156,9 +156,6 @@ func DeleteCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, originMessageI
 
 	originMessage := update.CallbackQuery.Message
 	deleteMap, editMap, _ := cache.DeleteRequest("./internal/infrastructure/storage/cache/cache.json", originMessageID)
-	if len(deleteMap) == 0 {
-		return
-	}
 
 	for chatID, innerMap := range editMap {
 		for forwardMessageID, isMedia := range innerMap {
@@ -168,6 +165,10 @@ func DeleteCallback(update tgbotapi.Update, bot *tgbotapi.BotAPI, originMessageI
 				media.IfExist(isMedia, chatID, forwardMessageID, bot, "Ваш запрос был удален администратором")
 			}
 		}
+	}
+
+	if len(deleteMap) == 0 {
+		return
 	}
 
 	for chatID, messageID := range deleteMap {

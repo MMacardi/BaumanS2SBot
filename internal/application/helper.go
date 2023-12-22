@@ -87,7 +87,7 @@ func FormingRequest(session *model.UserSession, update tgbotapi.Update,
 		} else {
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите описание проблемы:")
 			if _, err := bot.Send(msg); err != nil {
-				log.Fatalf("Error with sending Введите описание msg: %v", err)
+				log.Printf("Error with sending Введите описание msg: %v", err)
 			}
 			userStates[userID] = states.StateConfirmationRequestForHelp
 		}
@@ -124,7 +124,7 @@ func ConfirmRequest(session *model.UserSession, update tgbotapi.Update,
 }
 
 func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB, update tgbotapi.Update,
-	bot *tgbotapi.BotAPI, userID int64, userStates map[int64]int, debug bool) {
+	bot *tgbotapi.BotAPI, userID int64, userStates map[int64]int, debug bool, fwdToSelf bool) {
 	if update.Message.Text == commands.BackToHome {
 		SendHomeKeyboard(bot, update.Message.Chat.ID, userStates, userID)
 	} else if update.Message.Text == commands.Yes {
@@ -133,7 +133,7 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 		msg.ParseMode = "HTML"
 		_, err := bot.Send(msg)
 		if err != nil {
-			log.Fatalf("Can't send congrats forming request: %v", err)
+			log.Printf("Can't send congrats forming request: %v", err)
 		}
 
 		inlineBtn := tgbotapi.NewInlineKeyboardButtonData("Мне помогли ! 🎉", fmt.Sprintf("deleteRequest:%v", session.OriginMessageID))
@@ -143,7 +143,7 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 
 		origMsg, err := bot.Send(session.OriginMessage)
 		if err != nil {
-			log.Fatalf("Can't send cograts forming request: %v", err)
+			log.Printf("Can't send cograts forming request: %v", err)
 		}
 
 		err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
@@ -154,13 +154,13 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 			session.IsMedia)
 
 		if err != nil {
-			log.Fatalf("can't addRequest to json file: %v", err)
+			log.Printf("can't addRequest to json file: %v", err)
 		}
 
 		cleverUserIDSlice, err := GetCleverUsersSlice(ctx, db, session.HelpCategoryID)
 
 		if err != nil {
-			log.Fatalf("can't get clever user's id %v", err)
+			log.Printf("can't get clever user's id %v", err)
 		}
 
 		// admin method lmao
@@ -169,9 +169,9 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 			cleverUserIDSlice = append(cleverUserIDSlice, adminID)
 		}
 		for _, cleverUserID := range cleverUserIDSlice {
-			if cleverUserID != userID && debug == false {
+			if cleverUserID != userID && fwdToSelf == false {
 				SendingToCleverUsers(session, update, bot, session.IsMedia, cleverUserID)
-			} else if debug == true {
+			} else if fwdToSelf == true {
 				SendingToCleverUsers(session, update, bot, session.IsMedia, cleverUserID)
 			}
 		}
@@ -194,11 +194,11 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 
 			_, err = bot.Send(msg)
 			if err != nil {
-				log.Fatalf("Can't forward message to clever guys with id: %v %v", adminID, err)
+				log.Printf("Can't forward message to clever guys with id: %v %v", adminID, err)
 			}
 
 			if _, err = bot.Send(session.OriginMessage); err != nil {
-				log.Fatalf("Can't send cograts forming request: %v", err)
+				log.Printf("Can't send cograts forming request: %v", err)
 			}
 
 			_, err = bot.Send(tgbotapi.NewMessage(adminID, "Это конец запроса, админ"))
@@ -210,13 +210,13 @@ func SendingRequest(session *model.UserSession, ctx context.Context, db *sqlx.DB
 	} else if update.Message.Text == commands.No {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите описание проблемы:")
 		if _, err := bot.Send(msg); err != nil {
-			log.Fatalf("Error with sending Введите описание msg: %v", err)
+			log.Printf("Error with sending Введите описание msg: %v", err)
 		}
 		userStates[userID] = states.StateConfirmationRequestForHelp
 	} else {
 		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Нажмите на кнопку:")
 		if _, err := bot.Send(msg); err != nil {
-			log.Fatalf("Error with sending Введите описание msg: %v", err)
+			log.Printf("Error with sending Введите описание msg: %v", err)
 		}
 		userStates[userID] = states.StateSendingRequestForHelp
 	}
@@ -237,7 +237,7 @@ func SendingToCleverUsers(session *model.UserSession, update tgbotapi.Update,
 
 	sentMsg, err := bot.Send(msg)
 	if err != nil {
-		log.Fatalf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
+		log.Printf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
 	}
 
 	err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
@@ -248,7 +248,7 @@ func SendingToCleverUsers(session *model.UserSession, update tgbotapi.Update,
 		false)
 
 	if err != nil {
-		log.Fatalf("can't addRequest to json file: %v", err)
+		log.Printf("can't addRequest to json file: %v", err)
 	}
 
 	// описание задачи
@@ -257,14 +257,14 @@ func SendingToCleverUsers(session *model.UserSession, update tgbotapi.Update,
 
 	sentDescriptionMsg, err := bot.Send(forwardMsg)
 	if err != nil {
-		log.Fatalf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
+		log.Printf("Can't forward message to clever guys with id: %v %v", cleverUserID, err)
 	}
 
 	err = cache.AddRequest("./internal/infrastructure/storage/cache/cache.json",
 		cleverUserID, session.OriginMessageID, session.ParsedDateTime, sentDescriptionMsg.MessageID, isMedia)
 	//log.Print(cleverUserID, session.OriginMessageID, session.ParsedDateTime, sentDescriptionMsg.MessageID)
 	if err != nil {
-		log.Fatalf("can't addRequest to json file: %v", err)
+		log.Printf("can't addRequest to json file: %v", err)
 	}
 
 }

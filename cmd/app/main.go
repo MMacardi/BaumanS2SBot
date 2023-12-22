@@ -22,19 +22,19 @@ func main() {
 
 	loc, err := time.LoadLocation("Europe/Moscow")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 
 	token := os.Getenv("TELEGRAM_API_TOKEN")
 	bot, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
-		log.Fatalf("Error with the token: %v\n", err)
+		log.Printf("Error with the token: %v\n", err)
 	}
 	dataSourceName := os.Getenv("DATASOURCE_NAME")
 	db, err := application.InitDB(dataSourceName)
 
 	if err != nil {
-		log.Fatalf("Error connecting to database: %v", err)
+		log.Printf("Error connecting to database: %v", err)
 	}
 
 	defer func(db *sqlx.DB) {
@@ -59,6 +59,7 @@ func main() {
 
 	// debug for admin features and no forwarding from user to themselves
 	debug := false
+	fwdToSelf := false
 
 	updates := bot.GetUpdatesChan(u)
 	for update := range updates {
@@ -78,6 +79,7 @@ func main() {
 			application.CommandHandler(update, bot, db, userID, chatID, userStates)
 		}
 
-		application.Start(userSessions, update, ctx, db, bot, userID, chatID, userStates[userID], userStates, dateTimeLayout, loc, debug)
+		application.Start(userSessions, update, ctx, db, bot, userID, chatID,
+			userStates[userID], userStates, dateTimeLayout, loc, debug, fwdToSelf)
 	}
 }

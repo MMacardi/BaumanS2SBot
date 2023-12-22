@@ -22,7 +22,7 @@ func LoadRequests(filename string) (FileDataList, error) {
 	fileBytes, err := os.ReadFile(filename)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Fatalf("No file finded: %v", err)
+			log.Printf("No file finded: %v", err)
 			return data, nil
 		}
 		return data, err

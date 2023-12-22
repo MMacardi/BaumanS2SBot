@@ -48,7 +48,7 @@ func AddKeyboardButton(keyboard tgbotapi.ReplyKeyboardMarkup, newButton string) 
 func getSortedCategoriesSlice(ctx context.Context, db *sqlx.DB) []string {
 	categories, err := GetCategoriesMap(ctx, db)
 	if err != nil {
-		log.Fatalf("Error getting categories %v", err)
+		log.Printf("Error getting categories %v", err)
 	}
 
 	var categoryNames []string
